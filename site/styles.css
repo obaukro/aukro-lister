@@ -163,3 +163,7 @@ main#sheet { padding: 0; }
 /* tabulka se vejde do stránky a posouvá se uvnitř (šipky drží označenou buňku v zobrazení) */
 #grid { width: 100%; max-width: 100%; }
 #sheet { overflow: hidden; min-width: 0; }
+/* stránka vyplní okno, posouvá se jen tabulka */
+html, body { height: 100%; }
+#sheet { margin-bottom: 0; }
+.hint { margin: 0; }

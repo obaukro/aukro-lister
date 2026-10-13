@@ -431,6 +431,25 @@ function attrColumns() {
 // ---------- Tabulka ----------
 let table = null;
 
+// Výška tabulky = zbytek okna pod ní, aby stránka vyplnila monitor a nápověda pod tabulkou byla vidět.
+function availableGridHeight() {
+  const grid = $('#grid');
+  const hint = $('#viewHint');
+  const top = grid.getBoundingClientRect().top + window.scrollY;
+  const below = (hint?.offsetHeight || 0) + 24; // nápověda + okraj stránky
+  return Math.max(260, Math.floor(window.innerHeight - top - below));
+}
+const initialGridHeight = () => `${availableGridHeight()}px`;
+function fitGrid() {
+  if (!table) return;
+  const h = availableGridHeight();
+  if (Math.abs((table.element?.offsetHeight || 0) - h) > 2) table.setHeight(h);
+}
+let fitTimer;
+window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitGrid, 100); });
+$('#settingsBox').addEventListener('toggle', () => requestAnimationFrame(fitGrid));
+for (const id of ['demoBanner', 'langNotice']) new MutationObserver(() => requestAnimationFrame(fitGrid)).observe($('#' + id), { attributes: true, childList: true });
+
 async function renderGrid() {
   await preloadAttributes();
   state.rows.forEach(validate);
@@ -442,7 +461,7 @@ async function renderGrid() {
     data: (state.view === 'offers' ? state.rows : state.rows.filter((r) => !isEmptyRow(r))).map(viewOf),
     index: 'id',
     columns: state.view === 'offers' ? offerColumns() : attrColumns(),
-    height: 'calc(100vh - 250px)',
+    height: initialGridHeight(),
     layout: 'fitData',
     // tabulkový režim: označení oblasti myší / Shift+šipkami, Delete maže, psaní nebo dvojklik edituje
     selectableRange: 1,
@@ -456,7 +475,7 @@ async function renderGrid() {
     placeholder: t('noOffers'),
   });
   table.on('cellEdited', (cell) => onCellsChanged([[cell.getRow().getData().id, cell.getField(), cell.getValue()]]));
-  table.on('tableBuilt', () => { renderViewTabs(); updateSummary(); });
+  table.on('tableBuilt', () => { renderViewTabs(); updateSummary(); requestAnimationFrame(fitGrid); });
 }
 
 function onCellsChanged(changes) {
@@ -965,6 +984,8 @@ async function init() {
     message(t('loadErrorTitle'), `<p>${escapeHtml(e.message)}</p><p class="muted">${t('loadErrorHint')}</p>`);
     return;
   }
+  // vyplněné nastavení prodejce sbalit, ať má tabulka víc místa
+  if (!Object.keys(validateSettings(state.settings)).length) $('#settingsBox').open = false;
   await renderGrid();
   window.__aukroReady = true;
   window.__aukro = { get state() { return state; }, table: () => table };
