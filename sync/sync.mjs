@@ -11,6 +11,9 @@
 //   DELAY_MS           pauza mezi požadavky jednoho vlákna, výchozí 150
 //   MAX_AGE_DAYS       po kolika dnech znovu stáhnout všechny parametry, i když se kategorie nezměnily (výchozí 7)
 //   FORCE=1            stáhnout vše bez ohledu na ETag a stáří
+//   MODE               all (výchozí) = stáhnout jazyky a zapsat souhrnný manifest
+//                      sync          = jen stáhnout uvedené jazyky (paralelní úlohy ve workflow)
+//                      manifest      = nic nestahovat, jen uklidit staré uspořádání a zapsat souhrnný manifest
 //
 // Spuštění: node sync/sync.mjs
 
@@ -26,9 +29,11 @@ const CONCURRENCY = Number(env.CONCURRENCY || 2);
 const DELAY_MS = Number(env.DELAY_MS || 150);
 const MAX_AGE_DAYS = Number(env.MAX_AGE_DAYS || 7);
 const FORCE = env.FORCE === '1' || env.FORCE === 'true';
+const MODE = env.MODE || 'all';
+const ALL_LANGUAGES = ['cs-CZ', 'sk-SK', 'hu-HU', 'hr-HR', 'sl-SI'];
 
 for (const name of ['AUKRO_CLIENT_ID', 'AUKRO_CLIENT_SECRET', 'AUKRO_API_KEY']) {
-  if (!env[name]) {
+  if (MODE !== 'manifest' && !env[name]) {
     console.error(`Chybí proměnná prostředí ${name}.`);
     process.exit(2);
   }
@@ -247,7 +252,8 @@ async function syncLanguage(LANGUAGE, OUT) {
   return { ok: true };
 }
 
-async function main() {
+// Souhrnný manifest: jazyky, které mají stažená data, a nejnovější změna.
+async function writeTopManifest() {
   await mkdir(OUT, { recursive: true });
   const topPath = join(OUT, 'manifest.json');
   const top = await readJson(topPath, {});
@@ -256,18 +262,28 @@ async function main() {
     await rm(join(OUT, 'categories.json'), { force: true });
     await rm(join(OUT, 'attributes'), { recursive: true, force: true });
   }
-  let allOk = true;
-  for (const lang of LANGUAGES) {
-    const res = await syncLanguage(lang, join(OUT, lang));
-    if (!res.ok) allOk = false;
-  }
-  // souhrnný manifest: seznam jazyků a nejnovější změna
+  const languages = [];
   let updatedAt = null;
-  for (const lang of LANGUAGES) {
-    const m = await readJson(join(OUT, lang, 'manifest.json'), {});
+  for (const lang of [...new Set([...ALL_LANGUAGES, ...LANGUAGES])]) {
+    const m = await readJson(join(OUT, lang, 'manifest.json'), null);
+    const cats = await readJson(join(OUT, lang, 'categories.json'), null);
+    if (!m || !cats) continue;
+    languages.push(lang);
     if (m.updatedAt && (!updatedAt || m.updatedAt > updatedAt)) updatedAt = m.updatedAt;
   }
-  await writeIfChanged(topPath, { languages: LANGUAGES, updatedAt });
+  await writeIfChanged(topPath, { languages, updatedAt });
+  log(`Souhrnný manifest: ${languages.join(', ') || 'žádné jazyky'}`);
+}
+
+async function main() {
+  let allOk = true;
+  if (MODE !== 'manifest') {
+    for (const lang of LANGUAGES) {
+      const res = await syncLanguage(lang, join(OUT, lang));
+      if (!res.ok) allOk = false;
+    }
+  }
+  if (MODE !== 'sync') await writeTopManifest();
   if (!allOk) process.exit(1);
   log('Hotovo.');
 }
