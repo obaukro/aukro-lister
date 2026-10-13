@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aukro Lister</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <strong>Aukro Lister</strong>
+      <span id="dataInfo" class="muted">Načítám číselníky…</span>
+    </div>
+    <div class="actions">
+      <button id="btnOpen" type="button">Otevřít práci</button>
+      <button id="btnSave" type="button">Uložit práci</button>
+      <button id="btnImportCsv" type="button">Importovat CSV</button>
+      <button id="btnExport" type="button" class="primary">Exportovat CSV</button>
+    </div>
+  </header>
+
+  <div id="demoBanner" class="banner" hidden>
+    Zobrazují se <strong>ukázková data</strong>. Skutečné kategorie a parametry se objeví po první synchronizaci s Aukrem.
+  </div>
+
+  <details id="settingsBox" class="settings" open>
+    <summary>Nastavení prodejce <span id="settingsState" class="pill"></span></summary>
+    <form id="settingsForm" class="settings-grid" autocomplete="off">
+      <label>Účet na doméně
+        <select name="domain"></select>
+      </label>
+      <label>Město
+        <input name="city" placeholder="Ostrava">
+      </label>
+      <label>PSČ
+        <input name="postCode" placeholder="702 00">
+      </label>
+      <label>Země
+        <select name="countryCode"></select>
+      </label>
+      <label>ID šablony dopravy
+        <input name="shippingTemplateId" inputmode="numeric" placeholder="např. 2419062">
+        <small>Najdete v Moje Aukro → Můj prodej → Šablony dopravy.</small>
+      </label>
+      <label>Výchozí délka
+        <select name="defaultDuration"></select>
+      </label>
+      <label>Výchozí opakování
+        <select name="defaultReexposeType"></select>
+      </label>
+    </form>
+  </details>
+
+  <nav class="tabs">
+    <div id="tabs" class="tab-list"></div>
+    <button id="btnAddSheet" type="button" class="tab-add">+ Nový list (kategorie)</button>
+  </nav>
+
+  <main id="sheetArea">
+    <div id="emptyState" class="empty">
+      <p><strong>Začněte výběrem kategorie.</strong></p>
+      <p class="muted">Každý list obsahuje nabídky jedné kategorie. Sloupce parametrů se doplní podle ní.</p>
+      <button id="btnAddSheet2" type="button" class="primary">Vybrat kategorii</button>
+    </div>
+    <div id="sheet" hidden>
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <button id="btnAddRow" type="button">+ Řádek</button>
+          <button id="btnAddRows" type="button">+ 10 řádků</button>
+          <button id="btnDuplicate" type="button">Duplikovat vybrané</button>
+          <button id="btnDelete" type="button" class="danger">Smazat vybrané</button>
+        </div>
+        <div id="summary" class="summary"></div>
+      </div>
+      <div class="table-wrap">
+        <table id="grid"></table>
+      </div>
+      <p class="hint muted">Tip: z Excelu nebo Google Sheets můžete zkopírovat více buněk a vložit je (Ctrl/Cmd+V) do libovolné buňky – data se rozloží do sloupců a řádků.</p>
+    </div>
+  </main>
+
+  <!-- Výběr kategorie -->
+  <dialog id="dlgCategory">
+    <form method="dialog" class="dlg">
+      <h2>Vyberte kategorii</h2>
+      <input id="catSearch" type="search" placeholder="Hledat kategorii…" autocomplete="off">
+      <ul id="catList" class="cat-list"></ul>
+      <div class="dlg-actions"><button value="cancel">Zavřít</button></div>
+    </form>
+  </dialog>
+
+  <!-- Fotky -->
+  <dialog id="dlgImages">
+    <form method="dialog" class="dlg">
+      <h2>Fotky nabídky</h2>
+      <p class="muted">Vložte veřejné adresy fotek (https://…), každou na samostatný řádek. První fotka je hlavní. <span id="imgLimit"></span></p>
+      <textarea id="imgText" rows="8" spellcheck="false"></textarea>
+      <div id="imgPreview" class="img-preview"></div>
+      <div class="dlg-actions">
+        <button value="cancel">Zrušit</button>
+        <button id="imgOk" value="ok" class="primary">Uložit</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Popis -->
+  <dialog id="dlgDesc" class="wide">
+    <form method="dialog" class="dlg">
+      <h2>Popis nabídky</h2>
+      <p class="muted">Skládejte popis z bloků. V odstavci je každý řádek samostatný odstavec, **text** = tučně. Seznam: jedna položka na řádek.</p>
+      <div class="desc-layout">
+        <div>
+          <div id="descBlocks" class="desc-blocks"></div>
+          <div class="desc-add">
+            <button type="button" data-add="h2">+ Nadpis</button>
+            <button type="button" data-add="p">+ Odstavec</button>
+            <button type="button" data-add="ul">+ Odrážky</button>
+            <button type="button" data-add="ol">+ Číslovaný seznam</button>
+            <button type="button" data-add="img">+ Obrázek</button>
+          </div>
+        </div>
+        <div>
+          <div class="muted small">Náhled</div>
+          <div id="descPreview" class="desc-preview"></div>
+          <div id="descCount" class="muted small"></div>
+        </div>
+      </div>
+      <div class="dlg-actions">
+        <button type="button" id="descApplyAll">Použít pro všechny řádky listu</button>
+        <span class="spacer"></span>
+        <button value="cancel">Zrušit</button>
+        <button id="descOk" value="ok" class="primary">Uložit</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Vícenásobný výběr parametru -->
+  <dialog id="dlgChecks">
+    <form method="dialog" class="dlg">
+      <h2 id="checksTitle"></h2>
+      <div id="checksList" class="checks-list"></div>
+      <div class="dlg-actions">
+        <button value="cancel">Zrušit</button>
+        <button id="checksOk" value="ok" class="primary">Uložit</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Zprávy -->
+  <dialog id="dlgMessage">
+    <form method="dialog" class="dlg">
+      <h2 id="msgTitle"></h2>
+      <div id="msgBody"></div>
+      <div class="dlg-actions"><button value="ok" class="primary">OK</button></div>
+    </form>
+  </dialog>
+
+  <input id="fileOpen" type="file" accept=".json,application/json" hidden>
+  <input id="fileCsv" type="file" accept=".csv,text/csv" hidden>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

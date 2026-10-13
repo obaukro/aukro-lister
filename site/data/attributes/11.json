@@ -1,0 +1,1 @@
+{"categoryId":11,"attributes":[{"id":48,"name":"Stav","mandatory":true,"companyOnly":false,"type":"combobox","options":[{"id":714,"name":"Nové"},{"id":715,"name":"Použité"},{"id":9826,"name":"Nefunkční / na díly"}]},{"id":90,"name":"Místo","mandatory":false,"companyOnly":false,"type":"string","length":80}]}
