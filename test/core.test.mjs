@@ -20,6 +20,7 @@ const categoryAttrs = [
 const attrs = mergeAttributes(categoryAttrs);
 const row = {
   ...newRow(settings),
+  categoryId: 107152,
   name: 'Apple iPhone 14 Pro, 128GB, Space Black (vzorová nabídka)', extId: 'MPXV3YC/A', type: 'COMBINED',
   auctionPrice: '23000', buyNowPrice: '26500', retailPrice: '28590', quantity: '1', duration: '30', reexposeType: '2',
   images: ['https://iczc.cz/dfhfuh353ejog9mpi4mar5cccf-3_1/obrazek'],
@@ -41,7 +42,7 @@ console.log('✓ export odpovídá Sheets šabloně');
 
 // 2) Import CSV ze šablony i z API ukázky
 const back = recordToRow(tplRec);
-assert.equal(back.type, 'COMBINED'); assert.equal(back.retailPrice, '28590'); assert.equal(back.attrs[48], '15348');
+assert.equal(back.type, 'COMBINED'); assert.equal(back.categoryId, 107152); assert.equal(back.retailPrice, '28590'); assert.equal(back.attrs[48], '15348');
 const apiRec = parseCsv(fixture('offers-import_example_v2.csv'))[0];
 assert.equal(recordToRow(apiRec).attrs[86], '1900');
 console.log('✓ import CSV');
@@ -54,9 +55,11 @@ assert.equal(mergeAttributes([]).length, GLOBAL_ATTRIBUTES.length);
 console.log('✓ globální parametry');
 
 // 4) Validace
-const ctx = { settings, attributes: attrs, category: { maxImages: 24 } };
+const ctx = { settings, attributes: attrs, category: { id: 107152, leaf: true, active: true, maxImages: 24 } };
 assert.deepEqual(validateRow({ ...row, duration: '7' }, ctx), {});
 assert.ok(validateRow(row, ctx).duration, '30 dní jen pro Kup teď');
+assert.ok(validateRow({ ...row, duration: '7', categoryId: null }, ctx).categoryId, 'chybí kategorie');
+assert.ok(validateRow({ ...row, duration: '7' }, { ...ctx, category: undefined }).categoryId, 'neznámá kategorie');
 const bad = validateRow({ ...row, name: 'ab', type: 'AUCTION', quantity: '3', images: [], description: [], attrs: { 8820: '999' } }, ctx);
 for (const k of ['name', 'quantity', 'images', 'description', 'attr:8820']) assert.ok(bad[k], `chyba ${k}`);
 assert.ok(validateRow({ ...row, auctionPrice: '10.5' }, ctx).auctionPrice, 'CZK bez desetin');

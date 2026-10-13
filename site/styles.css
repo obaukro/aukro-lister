@@ -75,14 +75,10 @@ input:disabled { background: transparent; border-style: dashed; }
 .err, td.err { border-color: var(--bad) !important; }
 input.err, select.err { background: var(--bad-bg); }
 
-.tabs { display: flex; gap: 8px; align-items: flex-end; padding: 0 16px; flex-wrap: wrap; }
-.tab-list { display: flex; gap: 4px; flex-wrap: wrap; }
-.tab { display: flex; border: 1px solid var(--line); border-bottom: none; border-radius: 8px 8px 0 0; background: var(--bg); }
-.tab.active { background: var(--surface); }
-.tab button { border: none; background: transparent; border-radius: 0; }
-.tab.active .tab-name { font-weight: 600; }
-.tab-close { color: var(--muted); }
-.tab-add { margin-bottom: 4px; }
+.tabs { display: flex; gap: 4px; align-items: flex-end; padding: 0 16px; }
+.tab { border: 1px solid var(--line); border-bottom: none; border-radius: 8px 8px 0 0; background: var(--bg); padding: 8px 16px; }
+.tab.active { background: var(--surface); font-weight: 600; }
+.tab .bad { font-weight: 500; }
 
 main { padding: 0 16px 32px; }
 .empty { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 40px 16px; text-align: center; }
@@ -149,3 +145,36 @@ dialog::backdrop { background: rgb(0 0 0 / .35); }
 .boolcell { display: flex; justify-content: center; }
 .boolcell input { width: auto; }
 #grid tr.skipped td:not(.col-sel):not(.col-bool) { opacity: .45; }
+
+#grid td.col-slot { vertical-align: top; }
+.slot-label { font-size: 11px; color: var(--muted); padding: 2px 8px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+#grid td.slot-empty { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--bg) 6px 12px); }
+.readonly { padding: 5px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+#viewHint { padding: 8px 10px 0; margin: 0; }
+#grid td.col-slot input, #grid td.col-slot select { border-color: var(--line); background: var(--surface); }
+
+/* ---------- Tabulator ---------- */
+#sheet { background: var(--surface); border: 1px solid var(--line); border-radius: 0 var(--radius) var(--radius) var(--radius); margin: 0 16px 24px; padding: 0; }
+main#sheet { padding: 0; }
+#grid { border: none; border-top: 1px solid var(--line); font-size: 13px; background: var(--surface); }
+#grid.tabulator { background-color: var(--surface); }
+#grid .tabulator-header { background: var(--bg); color: var(--text); border-bottom: 1px solid var(--line); }
+#grid .tabulator-header .tabulator-col { background: var(--bg); border-right: 1px solid var(--line); }
+#grid .tabulator-col-title { font-weight: 600; font-size: 12px; }
+#grid .tabulator-tableholder { background: var(--surface); }
+#grid .tabulator-row { background: var(--surface); color: var(--text); border-bottom: 1px solid var(--line); }
+#grid .tabulator-row.tabulator-row-even { background: var(--surface); }
+#grid .tabulator-row .tabulator-cell { border-right: 1px solid var(--line); padding: 6px 8px; }
+#grid .tabulator-row .tabulator-cell.tabulator-frozen { background: inherit; }
+#grid .tabulator-cell.cell-err { background: var(--bad-bg) !important; box-shadow: inset 0 0 0 1px var(--bad); }
+#grid .tabulator-cell.cell-na { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--bg) 6px 12px) !important; }
+#grid .tabulator-cell.col-attrname { color: var(--muted); background: var(--bg); }
+#grid .tabulator-cell.col-status { cursor: pointer; font-weight: 600; }
+#grid .tabulator-cell.tabulator-range-selected:not(.tabulator-range-only-cell-selected) { background-color: rgb(37 99 235 / .12); }
+#grid .tabulator-cell.tabulator-range-only-cell-selected, #grid .tabulator-cell.tabulator-range-selected { outline: none; }
+#grid .tabulator-range-overlay .tabulator-range.tabulator-range-active { border-color: var(--focus); }
+#grid .tabulator-cell.tabulator-editing { box-shadow: inset 0 0 0 2px var(--focus); }
+#grid .tabulator-cell.tabulator-editing textarea { min-height: 120px; position: relative; z-index: 3; background: var(--surface); }
+.tabulator-edit-list { font-size: 13px; }
+.hint { padding: 8px 12px 12px; margin: 0; font-size: 12px; }
+.tick { color: var(--ok); font-weight: 700; }

@@ -65,6 +65,7 @@ export const uid = () => Date.now().toString(36) + (seq++).toString(36) + Math.r
 export function newRow(settings = defaultSettings()) {
   return {
     id: uid(),
+    categoryId: null,
     extId: '',
     name: '',
     type: 'BUY_NOW',
@@ -76,7 +77,7 @@ export function newRow(settings = defaultSettings()) {
     startingAt: '',
     reexposeType: String(settings.defaultReexposeType ?? 0),
     images: [],
-    description: [],
+    description: '',
     attrs: {},
     exportRow: true,
     bestOffer: false,
@@ -120,7 +121,45 @@ function inline(text) {
 
 // ---------- Popis ----------
 // Bloky: {t:'h2'|'p'|'ul'|'ol'|'img', v:string}. Seznamy: jedna položka na řádek.
+// Popis jako prostý text (jako ve Sheets šabloně), s jednoduchým formátováním:
+//   každý řádek = odstavec · "## Nadpis" · "- položka" = odrážky · "1. položka" = číslovaný seznam · **tučně**
+// Text začínající <div class="aukro-offer-default"> se převezme jako hotové HTML.
+export function textToBlocks(text) {
+  const t = String(text ?? '').replace(/\r/g, '');
+  if (!t.trim()) return [];
+  if (/^\s*<div class=["']aukro-offer-default["']/.test(t)) return [{ t: 'html', v: t.trim() }];
+  const blocks = [];
+  for (const raw of t.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    let m;
+    if ((m = line.match(/^#{1,3}\s+(.+)/))) blocks.push({ t: 'h2', v: m[1] });
+    else if ((m = line.match(/^[-*•]\s+(.+)/)) || (m = line.match(/^\d+[.)]\s+(.+)/))) {
+      const kind = /^\d/.test(line) ? 'ol' : 'ul';
+      const last = blocks.at(-1);
+      if (last && last.t === kind) last.v += '\n' + m[1];
+      else blocks.push({ t: kind, v: m[1] });
+    } else {
+      const last = blocks.at(-1);
+      if (last && last.t === 'p') last.v += '\n' + line;
+      else blocks.push({ t: 'p', v: line });
+    }
+  }
+  return blocks;
+}
+
+export function blocksToText(blocks) {
+  return (blocks || []).map((b) => {
+    if (b.t === 'h2') return `## ${b.v}`;
+    if (b.t === 'ul') return String(b.v).split('\n').map((x) => `- ${x}`).join('\n');
+    if (b.t === 'ol') return String(b.v).split('\n').map((x, i) => `${i + 1}. ${x}`).join('\n');
+    if (b.t === 'img') return '';
+    return String(b.v);
+  }).filter(Boolean).join('\n');
+}
+
 export function buildDescriptionHtml(blocks) {
+  if (typeof blocks === 'string') blocks = textToBlocks(blocks);
   const parts = [];
   let text = [];
   const flush = () => {
@@ -162,6 +201,10 @@ export function validateRow(row, ctx) {
   const { settings, attributes = [], category } = ctx;
   const e = {};
   const dom = DOMAINS[settings.domain] || DOMAINS['aukro.cz'];
+
+  if (!row.categoryId) e.categoryId = 'Vyberte kategorii.';
+  else if (!category) e.categoryId = `Kategorie ${row.categoryId} není v aktuálním číselníku Aukra.`;
+  else if (!category.leaf || !category.active) e.categoryId = 'Nabídku lze vystavit jen do aktivní koncové kategorie.';
 
   const name = String(row.name || '').trim();
   if (name.length < 3) e.name = 'Název musí mít aspoň 3 znaky.';
@@ -247,7 +290,8 @@ export function validateSettings(s) {
 
 // ---------- Export ----------
 export function rowToRecord(row, entityId, ctx) {
-  const { settings, categoryId, attributes = [] } = ctx;
+  const { settings, attributes = [] } = ctx;
+  const categoryId = ctx.categoryId ?? row.categoryId;
   const dom = DOMAINS[settings.domain] || DOMAINS['aukro.cz'];
   const auction = row.type === 'BUY_NOW' ? 0 : parseNumber(row.auctionPrice);
   const buyNow = row.type === 'AUCTION' ? 0 : parseNumber(row.buyNowPrice);
@@ -344,7 +388,8 @@ function safeJson(s, fallback) {
 }
 
 // Převede záznam z CSV zpět na řádek. parseDescription dodá volající (v prohlížeči přes DOMParser).
-export function recordToRow(rec, parseDescription = (h) => (h ? [{ t: 'html', v: h }] : [])) {
+// parseDescription: HTML -> text popisu; výchozí ponechá HTML beze změny (textToBlocks ho převezme jako hotové).
+export function recordToRow(rec, parseDescription = (h) => h || '') {
   const a = parseNumber(rec.auctionPriceAmount);
   const b = parseNumber(rec.buyNowPriceAmount);
   const type = a > 0 && b > 0 ? 'COMBINED' : a > 0 ? 'AUCTION' : 'BUY_NOW';
@@ -365,6 +410,7 @@ export function recordToRow(rec, parseDescription = (h) => (h ? [{ t: 'html', v:
   const bool = (v) => String(v).toLowerCase() === 'true';
   return {
     id: uid(),
+    categoryId: Number(rec.categoryId) || null,
     extId: rec.extId || '',
     name: rec.name || '',
     type,

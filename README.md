@@ -37,11 +37,19 @@ Pokud synchronizace selže, GitHub vám pošle e-mail. Podrobnosti najdete v zá
 
 ## Jak nástroj používá prodejce
 
-1. Vyplní **Nastavení prodejce**: město, PSČ a ID šablony dopravy (najde ho v Moje Aukro → Můj prodej → Šablony dopravy).
-2. Klikne na **+ Nový list (kategorie)** a vyhledá kategorii.
-3. Vyplní řádky. Hodnoty lze vložit i z Excelu nebo Google Sheets (Ctrl/Cmd + V). Chybné buňky se zbarví červeně a po najetí myší ukážou důvod.
-4. U každé nabídky doplní **fotky** (veřejné adresy obrázků) a **popis** (skládá se z bloků). Volitelně vyplní běžnou cenu a zapne Nabídnout cenu nebo placené propagace. Sloupcem **Export** lze řádek dočasně vyřadit.
-5. Klikne na **Exportovat CSV** a soubor nahraje do hromadného importu na Aukru. Nabídek může být víc než 350, nástroj je pak sám rozdělí do více souborů.
+Nástroj vypadá a ovládá se jako tabulka (knihovna [Tabulator](https://tabulator.info), licence MIT, přibalená v `site/vendor`). Má dva listy jako Sheets šablona:
+
+- **Nabídky**: všechny nabídky na jednom listu, kategorie se vybírá u každé nabídky (rozbalovací seznam s vyhledáváním, nebo vložením „Název 12345“ či ID).
+- **Parametry**: k nabídkám se doplňují parametry jejich kategorie ve dvojicích Parametr / Hodnota.
+
+Ovládání:
+
+1. Vyplňte **Nastavení prodejce**: město, PSČ a ID šablony dopravy.
+2. Buňky označíte myší nebo Shift + šipkami. **Ctrl/Cmd + C** a **Ctrl/Cmd + V** kopírují a vkládají oblasti, i z Excelu a Google Sheets, včetně víceřádkových buněk. Jedna zkopírovaná hodnota vložená do označené oblasti ji celou vyplní.
+3. Psaním, Enterem nebo dvojklikem buňku upravíte. Delete smaže obsah označených buněk.
+4. Chybné buňky jsou červené a po najetí myší ukážou důvod. Klik na stav řádku (např. „2 ✗“) vypíše všechny chyby nabídky.
+5. Popis: každý řádek je odstavec, `## Nadpis`, `- odrážka`, `1. bod`, `**tučně**`.
+6. **Exportovat CSV** stáhne soubor pro hromadný import na Aukru. Nad 350 nabídek se rozdělí do více souborů. Sloupcem **Export** lze nabídku dočasně vyřadit.
 
 Rozpracovaná práce se průběžně ukládá v prohlížeči. Pro zálohu nebo přenos na jiný počítač slouží **Uložit práci** a **Otevřít práci**. Přes **Importovat CSV** lze načíst existující CSV, například ze starých Sheets šablon.
 
