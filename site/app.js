@@ -5,6 +5,7 @@ import {
   defaultSettings, newRow, validateRow, validateSettings, blocksToText,
   rowToRecord, toCsv, chunkRecords, parseCsv, recordToRow, settingsFromRecord,
 } from './core.js';
+import { openDescriptionEditor, htmlToDescText } from './desc-editor.js';
 import { t, setLanguage, getLanguage, LANGUAGES, codeFromTag, allVariants, translateDom } from './i18n.js';
 
 const STORAGE_KEY = 'aukro-lister-v3';
@@ -379,9 +380,9 @@ function offerColumns() {
     categoryCol(),
     textCol('extId', t('colExtId'), 120),
     {
-      title: t('colDescription'), field: 'description', width: 260, editor: 'textarea',
-      editorParams: { verticalNavigation: 'editor', shiftEnterSubmit: true },
+      title: t('colDescription'), field: 'description', width: 260, editor: false,
       headerTooltip: t('colDescriptionTip'),
+      cellDblClick: (e, cell) => editDescription(cell),
       formatter: (cell) => {
         const lines = String(cell.getValue() ?? '').split('\n').filter((x) => x.trim());
         return deco(cell, lines.length ? `${escapeHtml(lines[0])}${lines.length > 1 ? ` <span class="muted small">+${lines.length - 1} ${t('lines')}</span>` : ''}` : '');
@@ -541,6 +542,13 @@ $('#grid').addEventListener('keydown', (e) => {
   if (!(printable || e.key === 'Enter' || e.key === 'F2')) return;
   const cell = table.getRanges()[0]?.getCells().flat()[0];
   if (!cell) return;
+  if (cell.getField() === 'description') {
+    // popis se upravuje v okně editoru
+    e.preventDefault();
+    e.stopPropagation();
+    editDescription(cell);
+    return;
+  }
   const def = cell.getColumn().getDefinition();
   if (!def.editor || def.editable === false || (typeof def.editable === 'function' && !def.editable(cell))) return;
   e.preventDefault();
@@ -606,11 +614,30 @@ $('#grid').addEventListener('copy', (e) => {
   e.clipboardData.setData('text/plain', cells.map((r) => r.map((c) => tsvCell(cellText(c))).join('\t')).join('\n'));
 });
 
+// otevře editor popisu pro řádek buňky
+function editDescription(cell) {
+  const row = rowById(cell.getRow().getData().id);
+  if (!row) return;
+  openDescriptionEditor(row.description, row.name, (text) => {
+    row.description = text;
+    refreshRow(row, true);
+    updateSummary();
+    saveSoon();
+  });
+}
+
 $('#grid').addEventListener('paste', async (e) => {
-  if (!table || e.target.closest('input, textarea')) return; // vkládání do editované buňky nechat prohlížeči
+  if (!table || e.target.closest('input, textarea, [contenteditable]')) return; // vkládání do editoru nechat prohlížeči
   const cells = table.getRanges()[0]?.getCells();
   if (!cells?.length) return;
   e.preventDefault();
+  // formátovaný text (Word, web) do jedné buňky popisu -> zachovat nadpisy, tučné a seznamy
+  const html = e.clipboardData.getData('text/html');
+  const plain = e.clipboardData.getData('text/plain');
+  if (html && cells.length === 1 && cells[0].length === 1 && cells[0][0].getField() === 'description' && !plain.includes('\t')) {
+    await pasteMatrix(cells, [[htmlToDescText(html)]]);
+    return;
+  }
   await pasteMatrix(cells, parseTsv(e.clipboardData.getData('text/plain')));
 });
 
