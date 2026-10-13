@@ -1,14 +1,17 @@
 name: Synchronizace a nasazení
 
 on:
+  # každý den ve 3:17 UTC zkontroluje a případně stáhne aktuální číselníky z Aukra
   schedule:
     - cron: '17 3 * * *'
+  # ruční spuštění v záložce Actions
   workflow_dispatch:
     inputs:
       force:
         description: 'Stáhnout vše znovu (ignorovat ETag a stáří)'
         type: boolean
         default: false
+  # změna nástroje -> otestovat a znovu publikovat (bez synchronizace)
   push:
     branches: [main]
 
@@ -18,7 +21,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: deploy
+  group: deploy-${{ github.event_name == 'push' && 'push' || 'sync' }}
   cancel-in-progress: false
 
 jobs:
@@ -32,39 +35,84 @@ jobs:
       - name: Testy
         run: node test/core.test.mjs
 
+  # každý jazyk se stahuje ve vlastní úloze, všechny běží souběžně
   sync:
     if: github.event_name != 'push'
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [cs-CZ, sk-SK, hu-HU, hr-HR, sl-SI]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Stáhnout kategorie a parametry
+      - name: Stáhnout kategorie a parametry (${{ matrix.lang }})
         env:
           AUKRO_CLIENT_ID: ${{ secrets.AUKRO_CLIENT_ID }}
           AUKRO_CLIENT_SECRET: ${{ secrets.AUKRO_CLIENT_SECRET }}
           AUKRO_API_KEY: ${{ secrets.AUKRO_API_KEY }}
+          AUKRO_LANGUAGES: ${{ matrix.lang }}
+          MODE: sync
           FORCE: ${{ inputs.force && '1' || '' }}
         run: node sync/sync.mjs
+      - name: Předat data jazyka
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lang-${{ matrix.lang }}
+          path: site/data/${{ matrix.lang }}
+          if-no-files-found: ignore
+          retention-days: 1
+
+  # spojí jazyky, zapíše souhrnný manifest a uloží změny do repozitáře
+  collect:
+    if: always() && github.event_name != 'push' && needs.test.result == 'success'
+    needs: [test, sync]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: lang-*
+          path: _download
+      - name: Spojit jazyky
+        run: |
+          for dir in _download/lang-*; do
+            [ -d "$dir" ] || continue
+            lang="${dir#_download/lang-}"
+            rm -rf "site/data/$lang"
+            mkdir -p "site/data/$lang"
+            cp -r "$dir"/. "site/data/$lang/"
+          done
+          rm -rf _download
+          MODE=manifest node sync/sync.mjs
       - name: Uložit změny do repozitáře
         run: |
           git config user.name "aukro-sync"
           git config user.email "aukro-sync@users.noreply.github.com"
-          git add site/data
+          git add -A site/data
           if git diff --cached --quiet; then
             echo "Žádné změny v číselnících."
           else
             git commit -m "Aktualizace číselníků Aukra $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main   # kdyby se mezitím změnil kód nástroje
             git push
           fi
 
   deploy:
-    needs: [test, sync]
-    if: always() && needs.test.result == 'success' && (needs.sync.result == 'success' || needs.sync.result == 'skipped')
+    needs: [test, collect]
+    if: always() && needs.test.result == 'success' && (needs.collect.result == 'success' || needs.collect.result == 'skipped')
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
