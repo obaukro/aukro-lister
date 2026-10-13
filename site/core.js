@@ -34,6 +34,18 @@ export const CSV_COLUMNS = [
 // Parametry, které šablona nabízí u všech kategorií (ID a volby převzaté ze Sheets šablony).
 // Pokud je kategorie vrací i z API, použije se verze z API.
 export const GLOBAL_IDS = [602, 601, 48, 130547, 8820];
+// Atribut „Kód zboží“ – vyplňuje se ze sloupce Kód zboží (extId) na listu Nabídky.
+export const PRODUCT_CODE_ATTR_ID = 18152;
+// Atributy vyplňované na listu Nabídky (na listu Atributy se nezobrazují).
+export const MAIN_TABLE_ATTR_IDS = [...GLOBAL_IDS, PRODUCT_CODE_ATTR_ID];
+
+// Hodnoty atributů včetně Kódu zboží převzatého ze sloupce extId (pokud ho kategorie má).
+export function effectiveAttrs(row, attributes = []) {
+  const attrs = { ...(row.attrs || {}) };
+  const code = String(row.extId || '').trim();
+  if (code && attributes.some((a) => a.id === PRODUCT_CODE_ATTR_ID) && !attrs[PRODUCT_CODE_ATTR_ID]) attrs[PRODUCT_CODE_ATTR_ID] = code;
+  return attrs;
+}
 export const globalAttributes = () => [
   { id: 602, name: 'EAN', mandatory: false, companyOnly: false, type: 'string', global: true },
   { id: 601, name: 'P/N', mandatory: false, companyOnly: false, type: 'string', global: true },
@@ -257,9 +269,10 @@ export function validateRow(row, ctx) {
   if (!html) e.description = t('vDescMissing');
   else if (html.length > MAX_DESCRIPTION) e.description = t('vDescLong', { len: html.length });
 
+  const eff = effectiveAttrs(row, attributes);
   for (const at of attributes) {
     const key = `attr:${at.id}`;
-    const v = row.attrs?.[at.id];
+    const v = eff[at.id];
     const empty = v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length);
     if (empty) {
       if (at.mandatory) e[key] = t('vAttrRequired', { name: at.name });
@@ -302,8 +315,9 @@ export function rowToRecord(row, entityId, ctx) {
   const buyNow = row.type === 'AUCTION' ? 0 : parseNumber(row.buyNowPrice);
   const retail = parseNumber(row.retailPrice);
   const attrs = [];
+  const eff = effectiveAttrs(row, attributes);
   for (const at of attributes) {
-    const v = row.attrs?.[at.id];
+    const v = eff[at.id];
     if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) continue;
     if (at.type === 'combobox' || at.type === 'checkbox') {
       attrs.push({ id: at.id, selectedId: (Array.isArray(v) ? v : [v]).map(Number) });

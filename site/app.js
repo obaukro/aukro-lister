@@ -1,7 +1,7 @@
 // Aukro Lister – tabulka nabídek postavená na knihovně Tabulator (site/vendor, licence MIT).
 // Logika validace a exportu je v core.js, tady je jen práce s tabulkou.
 import {
-  DOMAINS, COUNTRIES, DURATIONS, offerTypes, durations, reexposeTypes, globalAttributes, GLOBAL_IDS as GLOBAL_ID_LIST, mergeAttributes,
+  DOMAINS, COUNTRIES, DURATIONS, offerTypes, durations, reexposeTypes, globalAttributes, MAIN_TABLE_ATTR_IDS, PRODUCT_CODE_ATTR_ID, mergeAttributes,
   defaultSettings, newRow, validateRow, validateSettings, blocksToText,
   rowToRecord, toCsv, chunkRecords, parseCsv, recordToRow, settingsFromRecord,
 } from './core.js';
@@ -11,7 +11,8 @@ const STORAGE_KEY = 'aukro-lister-v3';
 const OLD_KEYS = ['aukro-lister-v2', 'aukro-lister-v1'];
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const GLOBAL_IDS = new Set(GLOBAL_ID_LIST);
+// atributy vyplňované na listu Nabídky (Kód zboží, EAN, P/N, Stav, Doba záruky, Doba dodání)
+const GLOBAL_IDS = new Set(MAIN_TABLE_ATTR_IDS);
 const escapeHtml = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---------- Stav ----------
@@ -240,6 +241,10 @@ const errorKey = (row, field) => {
   const a = attrForField(row, field);
   return a ? `attr:${a.id}` : field;
 };
+const errorFor = (row, field) => {
+  const errs = rowErrors.get(row.id) || {};
+  return errs[errorKey(row, field)] || (field === 'extId' ? errs[`attr:${PRODUCT_CODE_ATTR_ID}`] : '') || '';
+};
 
 // Zapíše jednu hodnotu tabulky do modelu. Vrací true, pokud se změnila kategorie.
 function applyField(row, field, value) {
@@ -287,7 +292,7 @@ function deco(cell, html) {
   const el = cell.getElement();
   // prázdný řádek: nezobrazovat výchozí hodnoty (Kup teď, 7 dní…), ať tabulka nepůsobí vyplněně
   if (row && isEmptyRow(row) && !['name', 'categoryId'].includes(cell.getField())) { el.classList.remove('cell-err'); el.title = ''; return ''; }
-  const msg = row ? (rowErrors.get(row.id) || {})[errorKey(row, cell.getField())] : '';
+  const msg = row ? errorFor(row, cell.getField()) : '';
   el.classList.toggle('cell-err', !!msg);
   el.title = msg || '';
   return html;

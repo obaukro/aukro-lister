@@ -21,13 +21,7 @@ const T = {
   btnSave: ['Uložit práci', 'Uložiť prácu', 'Munka mentése', 'Spremi rad', 'Shrani delo'],
   btnImportCsv: ['Importovat CSV', 'Importovať CSV', 'CSV importálása', 'Uvezi CSV', 'Uvozi CSV'],
   btnExport: ['Exportovat CSV', 'Exportovať CSV', 'CSV exportálása', 'Izvezi CSV', 'Izvozi CSV'],
-  demoBanner: [
-    'Zobrazují se <strong>ukázková data</strong>. Skutečné kategorie a parametry se objeví po první synchronizaci s Aukrem.',
-    'Zobrazujú sa <strong>ukážkové údaje</strong>. Skutočné kategórie a parametre sa zobrazia po prvej synchronizácii s Aukrom.',
-    '<strong>Mintaadatok</strong> láthatók. A valódi kategóriák és paraméterek az Aukróval való első szinkronizálás után jelennek meg.',
-    'Prikazuju se <strong>ogledni podaci</strong>. Stvarne kategorije i parametri pojavit će se nakon prve sinkronizacije s Aukrom.',
-    'Prikazani so <strong>vzorčni podatki</strong>. Prave kategorije in parametri se prikažejo po prvi sinhronizaciji z Aukrom.',
-  ],
+  demoBanner: ['Zobrazují se <strong>ukázková data</strong>. Skutečné kategorie a atributy se objeví po první synchronizaci s Aukrem.', 'Zobrazujú sa <strong>ukážkové údaje</strong>. Skutočné kategórie a atribúty sa zobrazia po prvej synchronizácii s Aukrom.', '<strong>Mintaadatok</strong> láthatók. A valódi kategóriák és attribútumok az Aukróval való első szinkronizálás után jelennek meg.', 'Prikazuju se <strong>ogledni podaci</strong>. Stvarne kategorije i atributi pojavit će se nakon prve sinkronizacije s Aukrom.', 'Prikazani so <strong>vzorčni podatki</strong>. Prave kategorije in atributi se prikažejo po prvi sinhronizaciji z Aukrom.'],
   noLangData: [
     'Číselníky v tomto jazyce zatím nejsou stažené, zobrazuje se čeština.',
     'Číselníky v tomto jazyku zatiaľ nie sú stiahnuté, zobrazuje sa čeština.',
@@ -52,7 +46,7 @@ const T = {
 
   // ---- listy a nástrojová lišta
   tabOffers: ['Nabídky', 'Ponuky', 'Ajánlatok', 'Ponude', 'Ponudbe'],
-  tabAttrs: ['Parametry', 'Parametre', 'Paraméterek', 'Parametri', 'Parametri'],
+  tabAttrs: ['Atributy', 'Atribúty', 'Attribútumok', 'Atributi', 'Atributi'],
   addRow: ['+ Řádek', '+ Riadok', '+ Sor', '+ Redak', '+ Vrstica'],
   addRows: ['+ 10 řádků', '+ 10 riadkov', '+ 10 sor', '+ 10 redaka', '+ 10 vrstic'],
   setCategory: ['Kategorie pro označené', 'Kategória pre označené', 'Kategória a kijelöltekhez', 'Kategorija za označene', 'Kategorija za označene'],
@@ -67,13 +61,7 @@ const T = {
     'Sve ponude na jednom listu, kategorija se bira za svaku ponudu. Označite ćelije mišem (ili Shift + strelicama); <b>Ctrl/Cmd+C</b> i <b>Ctrl/Cmd+V</b> kopiraju i lijepe i iz Excela i Google Sheetsa. Tipkanjem, Enterom ili dvostrukim klikom uređujete ćeliju, Delete briše sadržaj.',
     'Vse ponudbe na enem listu, kategorija se izbere pri vsaki ponudbi. Označite celice z miško (ali Shift + puščicami); <b>Ctrl/Cmd+C</b> in <b>Ctrl/Cmd+V</b> kopirata in lepita tudi iz Excela in Google Sheets. S tipkanjem, Enterjem ali dvoklikom celico uredite, Delete izbriše vsebino.',
   ],
-  hintAttrs: [
-    'Parametry kategorie u každé nabídky – dvojice Parametr / Hodnota jako ve Sheets šabloně. Šrafované buňky kategorie nemá. Hodnoty lze vkládat i jako text („Nové“, „Apple 7062“).',
-    'Parametre kategórie pri každej ponuke – dvojice Parameter / Hodnota ako v šablóne Sheets. Šrafované bunky kategória nemá. Hodnoty možno vkladať aj ako text („Nové“, „Apple 7062“).',
-    'A kategória paraméterei ajánlatonként – Paraméter / Érték párok, mint a Sheets sablonban. A csíkozott cellák a kategóriában nem léteznek. Az értékek szövegként is beilleszthetők („Új“, „Apple 7062“).',
-    'Parametri kategorije za svaku ponudu – parovi Parametar / Vrijednost kao u Sheets predlošku. Šrafirane ćelije kategorija nema. Vrijednosti se mogu lijepiti i kao tekst („Novo“, „Apple 7062“).',
-    'Parametri kategorije pri vsaki ponudbi – pari Parameter / Vrednost kot v predlogi Sheets. Šrafiranih celic kategorija nima. Vrednosti lahko prilepite tudi kot besedilo („Novo“, „Apple 7062“).',
-  ],
+  hintAttrs: ['Atributy kategorie u každé nabídky – dvojice Atribut / Hodnota jako ve Sheets šabloně. Kód zboží, EAN, P/N, Stav, Doba záruky a Doba dodání se vyplňují na listu Nabídky. Šrafované buňky kategorie nemá. Hodnoty lze vkládat i jako text („Nové“, „Apple 7062“).', 'Atribúty kategórie pri každej ponuke – dvojice Atribút / Hodnota ako v šablóne Sheets. Kód tovaru, EAN, P/N, Stav, Doba záruky a Doba dodania sa vypĺňajú na hárku Ponuky. Šrafované bunky kategória nemá. Hodnoty možno vkladať aj ako text („Nové“, „Apple 7062“).', 'A kategória attribútumai ajánlatonként – Attribútum / Érték párok, mint a Sheets sablonban. A termékkódot, EAN-t, P/N-t, állapotot, garanciát és szállítási időt az Ajánlatok lapon kell kitölteni. A csíkozott cellák a kategóriában nem léteznek. Az értékek szövegként is beilleszthetők („Új“, „Apple 7062“).', 'Atributi kategorije za svaku ponudu – parovi Atribut / Vrijednost kao u Sheets predlošku. Šifra proizvoda, EAN, P/N, stanje, jamstvo i rok isporuke unose se na listu Ponude. Šrafirane ćelije kategorija nema. Vrijednosti se mogu lijepiti i kao tekst („Novo“, „Apple 7062“).', 'Atributi kategorije pri vsaki ponudbi – pari Atribut / Vrednost kot v predlogi Sheets. Šifra izdelka, EAN, P/N, stanje, garancija in rok dobave se vnesejo na listu Ponudbe. Šrafiranih celic kategorija nima. Vrednosti lahko prilepite tudi kot besedilo („Novo“, „Apple 7062“).'],
 
   // ---- sloupce
   colExport: ['Export', 'Export', 'Export', 'Izvoz', 'Izvoz'],
@@ -109,7 +97,7 @@ const T = {
   colHighlight: ['Zvýraznění', 'Zvýraznenie', 'Kiemelés', 'Isticanje', 'Poudarek'],
   paidTip: ['Placená služba Aukra', 'Platená služba Aukra', 'Fizetős Aukro-szolgáltatás', 'Plaćena usluga Aukra', 'Plačljiva storitev Aukra'],
   colTitle: ['Název', 'Názov', 'Megnevezés', 'Naziv', 'Naziv'],
-  colParam: ['Parametr {n}', 'Parameter {n}', '{n}. paraméter', 'Parametar {n}', 'Parameter {n}'],
+  colParam: ['Atribut {n}', 'Atribút {n}', '{n}. attribútum', 'Atribut {n}', 'Atribut {n}'],
   colValue: ['Hodnota {n}', 'Hodnota {n}', '{n}. érték', 'Vrijednost {n}', 'Vrednost {n}'],
   companyOnly: ['(firmy)', '(firmy)', '(cégek)', '(tvrtke)', '(podjetja)'],
   statusTip: ['Klikněte pro seznam chyb', 'Kliknite pre zoznam chýb', 'Kattintson a hibák listájáért', 'Kliknite za popis grešaka', 'Kliknite za seznam napak'],
@@ -134,7 +122,7 @@ const T = {
   rowErrorsTitle: ['Chyby: {name}', 'Chyby: {name}', 'Hibák: {name}', 'Greške: {name}', 'Napake: {name}'],
   unnamedRow: ['řádek bez názvu', 'riadok bez názvu', 'névtelen sor', 'redak bez naziva', 'vrstica brez naziva'],
   canExport: ['Nabídku lze exportovat.', 'Ponuku možno exportovať.', 'Az ajánlat exportálható.', 'Ponuda se može izvesti.', 'Ponudbo je mogoče izvoziti.'],
-  onAttrsSheet: ['(list Parametry)', '(hárok Parametre)', '(Paraméterek lap)', '(list Parametri)', '(list Parametri)'],
+  onAttrsSheet: ['(list Atributy)', '(hárok Atribúty)', '(Attribútumok lap)', '(list Atributi)', '(list Atributi)'],
   excludedTitle: ['Nabídka je vyřazená', 'Ponuka je vyradená', 'Az ajánlat ki van zárva', 'Ponuda je isključena', 'Ponudba je izključena'],
   excludedBody: [
     'Nabídka se nebude exportovat a nekontroluje se. Zaškrtněte sloupec Export, pokud ji chcete exportovat.',
@@ -215,7 +203,7 @@ const T = {
   vImagesUrl: ['Každá fotka musí být veřejná adresa začínající http(s)://', 'Každá fotka musí byť verejná adresa začínajúca http(s)://', 'Minden fotónak http(s)://-sel kezdődő nyilvános címnek kell lennie', 'Svaka fotografija mora biti javna adresa koja počinje s http(s)://', 'Vsaka fotografija mora biti javni naslov, ki se začne s http(s)://'],
   vDescMissing: ['Popis je povinný.', 'Popis je povinný.', 'A leírás kötelező.', 'Opis je obavezan.', 'Opis je obvezen.'],
   vDescLong: ['Popis má {len} znaků včetně HTML, povoleno je 65 000.', 'Popis má {len} znakov vrátane HTML, povolených je 65 000.', 'A leírás HTML-lel együtt {len} karakter, legfeljebb 65 000 engedélyezett.', 'Opis ima {len} znakova uključujući HTML, dopušteno je 65 000.', 'Opis ima {len} znakov vključno s HTML, dovoljenih je 65 000.'],
-  vAttrRequired: ['{name}: povinný parametr.', '{name}: povinný parameter.', '{name}: kötelező paraméter.', '{name}: obavezan parametar.', '{name}: obvezen parameter.'],
+  vAttrRequired: ['{name}: povinný atribut.', '{name}: povinný atribút.', '{name}: kötelező attribútum.', '{name}: obavezan atribut.', '{name}: obvezen atribut.'],
   vAttrChoose: ['{name}: vyberte hodnotu ze seznamu.', '{name}: vyberte hodnotu zo zoznamu.', '{name}: válasszon értéket a listából.', '{name}: odaberite vrijednost s popisa.', '{name}: izberite vrednost s seznama.'],
   vAttrInvalid: ['{name}: neplatná volba.', '{name}: neplatná voľba.', '{name}: érvénytelen választás.', '{name}: neispravan odabir.', '{name}: neveljavna izbira.'],
   vAttrNumber: ['{name}: zadejte číslo.', '{name}: zadajte číslo.', '{name}: adjon meg számot.', '{name}: unesite broj.', '{name}: vnesite število.'],

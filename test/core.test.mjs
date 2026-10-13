@@ -84,3 +84,13 @@ assert.equal(validateRow({ ...row, duration: '7', categoryId: null }, ctx).categ
 setLanguage('cs');
 assert.equal(t('neexistujici-klic'), 'neexistujici-klic');
 console.log('✓ překlady');
+
+// 8) Kód zboží se posílá i jako atribut 18152, pokud ho kategorie má
+import { PRODUCT_CODE_ATTR_ID } from '../site/core.js';
+{
+  const withCode = [...attrs, { id: PRODUCT_CODE_ATTR_ID, name: 'Kód zboží', type: 'string', mandatory: true }];
+  const r = rowToRecord({ ...row, duration: '7' }, 1, { settings, categoryId: 107152, attributes: withCode });
+  assert.ok(JSON.parse(r.attributes).some((a) => a.id === PRODUCT_CODE_ATTR_ID && a.value === 'MPXV3YC/A'));
+  assert.ok(validateRow({ ...row, duration: '7', extId: '' }, { ...ctx, attributes: withCode })[`attr:${PRODUCT_CODE_ATTR_ID}`], 'povinný kód zboží');
+  console.log('✓ kód zboží jako atribut');
+}

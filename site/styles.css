@@ -16,21 +16,6 @@
   font-size: 14px;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #171716;
-    --surface: #222220;
-    --text: #ecece8;
-    --muted: #a3a39c;
-    --line: #3a3a36;
-    --bad: #ff6b6b;
-    --bad-bg: #3a1f1f;
-    --warn-bg: #3a2e1a;
-    --ok: #4cc38a;
-    color-scheme: dark;
-  }
-}
-
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); }
 button, input, select, textarea { font: inherit; color: inherit; }

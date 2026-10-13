@@ -36,6 +36,8 @@ const attributes = {
     { id: 40, name: 'Velikost (EU)', mandatory: true, companyOnly: false, valueConstraints: { type: 'combobox', options:
       [39, 40, 41, 42, 43, 44, 45, 46].map((v) => ({ optionId: 400 + v, name: String(v) })) } },
     { id: 41, name: 'Značka', mandatory: false, companyOnly: false, valueConstraints: { type: 'string', length: 50 } },
+    { id: 18152, name: 'Kód zboží', mandatory: false, companyOnly: false, valueConstraints: { type: 'string', length: 50 } },
+    { id: 602, name: 'EAN', mandatory: false, companyOnly: false, valueConstraints: { type: 'string', length: 13 } },
     { id: 42, name: 'EAN', mandatory: false, companyOnly: true, valueConstraints: { type: 'string', length: 13 } },
   ],
   30: [

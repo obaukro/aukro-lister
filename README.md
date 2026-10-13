@@ -40,7 +40,7 @@ Pokud synchronizace selže, GitHub vám pošle e-mail. Podrobnosti najdete v zá
 Nástroj vypadá a ovládá se jako tabulka (knihovna [Tabulator](https://tabulator.info), licence MIT, přibalená v `site/vendor`). Má dva listy jako Sheets šablona:
 
 - **Nabídky**: všechny nabídky na jednom listu, kategorie se vybírá u každé nabídky (rozbalovací seznam s vyhledáváním, nebo vložením „Název 12345“ či ID).
-- **Parametry**: k nabídkám se doplňují parametry jejich kategorie ve dvojicích Parametr / Hodnota.
+- **Atributy**: k nabídkám se doplňují atributy jejich kategorie ve dvojicích Atribut / Hodnota. Kód zboží, EAN, P/N, Stav, Doba záruky a Doba dodání se vyplňují přímo na listu Nabídky (Kód zboží se posílá i jako atribut 18152, pokud ho kategorie má).
 
 Ovládání:
 
@@ -80,7 +80,7 @@ Pozor: nástroj nefunguje po otevření `index.html` dvojklikem, protože prohl�
 
 Rozhraní je přeložené do jazyků zemí, kde Aukro působí: čeština, slovenština, maďarština, chorvatština a slovinština. Jazyk se přepíná v hlavičce a výchozí se odvodí z prohlížeče. Překlady jsou v `site/i18n.js` a překlady do HU, HR a SL je vhodné nechat zkontrolovat rodilým mluvčím.
 
-Číselníky se stahují ve všech pěti jazycích do `site/data/<jazyk>/`. Které jazyky se stahují, určuje proměnná `AUKRO_LANGUAGES`. Nástroj zobrazí kategorie a parametry v jazyce domény účtu nastavené u prodejce (aukro.cz → čeština, aukro.sk → slovenština, aukro.hu → maďarština, aukcije.hr → chorvatština, aukro.si → slovinština), protože v tomto jazyce musí být i nabídka. První synchronizace všech jazyků trvá zhruba pětkrát déle než u jednoho jazyka.
+Číselníky se stahují ve všech pěti jazycích do `site/data/<jazyk>/`. Které jazyky se stahují, určuje proměnná `AUKRO_LANGUAGES`. Nástroj zobrazí kategorie a parametry v jazyce domény účtu nastavené u prodejce (aukro.cz → čeština, aukro.sk → slovenština, aukro.hu → maďarština, aukcije.hr → chorvatština, aukro.si → slovinština), protože v tomto jazyce musí být i nabídka. Každý jazyk se stahuje v samostatné úloze a všechny běží souběžně, takže synchronizace všech jazyků trvá zhruba stejně dlouho jako jednoho. Poslední krok (collect) jazyky spojí, zapíše souhrnný `site/data/manifest.json` a uloží změny.
 
 ## Formát CSV
 
