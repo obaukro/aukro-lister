@@ -310,16 +310,20 @@ function enumCol(field, title, map, width) {
 const textCol = (field, title, width, extra = {}) => ({
   title, field, width, editor: 'input', formatter: (cell) => deco(cell, escapeHtml(cell.getValue() ?? '')), ...extra,
 });
-const boolCol = (field, title, width = 80, extra = {}) => ({
-  title, field, width, hozAlign: 'center', editor: 'tickCross',
-  formatter: (cell) => deco(cell, cell.getValue() ? '<span class="tick">✓</span>' : ''), ...extra,
+// zaškrtávací buňka: mezerník přepne všechny označené, dvojklik jednu
+const BOOL_FIELDS = new Set(['exportRow', 'bestOffer', 'priorityListing', 'boldTitle', 'highlight']);
+const boolCol = (field, title, width = 90, extra = {}) => ({
+  title, field, width, hozAlign: 'center', headerHozAlign: 'center', editor: 'tickCross', headerTooltip: t('spaceTip'),
+  formatter: (cell) => deco(cell, cell.getValue() ? '<span class="cb on">✓</span>' : '<span class="cb"></span>'), ...extra,
 });
 
 const statusCol = {
-  title: '', field: '_status', width: 52, editable: false, hozAlign: 'center', cssClass: 'col-status',
+  title: t('colStatus'), field: '_status', width: 96, editable: false, hozAlign: 'center', headerHozAlign: 'center',
+  cssClass: 'col-status', headerTooltip: t('colStatusTip'),
   formatter: (cell) => {
     const row = rowById(cell.getRow().getData().id);
-    if (!row || !isActive(row)) return '';
+    if (!row || isEmptyRow(row)) return '';
+    if (row.exportRow === false) { cell.getElement().title = t('excludedTitle'); return `<span class="muted small">${t('statusExcluded')}</span>`; }
     const n = Object.keys(rowErrors.get(row.id) || {}).length;
     cell.getElement().title = n ? t('statusTip') : t('statusOk');
     return n ? `<span class="bad">${n} ✗</span>` : '<span class="ok">✓</span>';
@@ -511,6 +515,28 @@ function syncFromTable() {
 $('#grid').addEventListener('keydown', (e) => {
   if (!table || e.target.closest('input, textarea, select')) return;
   if (e.key === 'Delete' || e.key === 'Backspace') { setTimeout(syncFromTable, 0); return; }
+  // mezerník: přepnout zaškrtávací buňky v označené oblasti (podle první z nich)
+  if (e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const bools = (table.getRanges()[0]?.getCells().flat() || []).filter((c) => BOOL_FIELDS.has(c.getField()));
+    if (bools.length) {
+      e.preventDefault();
+      e.stopPropagation();
+      const first = rowById(bools[0].getRow().getData().id);
+      const field0 = bools[0].getField();
+      const next = !(field0 === 'exportRow' ? first?.exportRow !== false : !!first?.[field0]);
+      const touched = new Set();
+      for (const c of bools) {
+        const row = rowById(c.getRow().getData().id);
+        if (!row) continue;
+        row[c.getField()] = next;
+        touched.add(row);
+      }
+      for (const row of touched) refreshRow(row, true);
+      updateSummary();
+      saveSoon();
+      return;
+    }
+  }
   const printable = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
   if (!(printable || e.key === 'Enter' || e.key === 'F2')) return;
   const cell = table.getRanges()[0]?.getCells().flat()[0];
