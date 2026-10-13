@@ -1,0 +1,80 @@
+name: Synchronizace a nasazení
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Stáhnout vše znovu (ignorovat ETag a stáří)'
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Testy
+        run: node test/core.test.mjs
+
+  sync:
+    if: github.event_name != 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Stáhnout kategorie a parametry
+        env:
+          AUKRO_CLIENT_ID: ${{ secrets.AUKRO_CLIENT_ID }}
+          AUKRO_CLIENT_SECRET: ${{ secrets.AUKRO_CLIENT_SECRET }}
+          AUKRO_API_KEY: ${{ secrets.AUKRO_API_KEY }}
+          FORCE: ${{ inputs.force && '1' || '' }}
+        run: node sync/sync.mjs
+      - name: Uložit změny do repozitáře
+        run: |
+          git config user.name "aukro-sync"
+          git config user.email "aukro-sync@users.noreply.github.com"
+          git add site/data
+          if git diff --cached --quiet; then
+            echo "Žádné změny v číselnících."
+          else
+            git commit -m "Aktualizace číselníků Aukra $(date -u +%Y-%m-%d)"
+            git push
+          fi
+
+  deploy:
+    needs: [test, sync]
+    if: always() && needs.test.result == 'success' && (needs.sync.result == 'success' || needs.sync.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
