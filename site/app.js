@@ -55,8 +55,10 @@ function ensureRows(n = 20) {
 }
 
 // ---------- Číselníky ----------
-// Jazyk číselníků = jazyk domény účtu (nabídky na aukro.sk musí být slovensky atd.).
-const dataTag = () => (DOMAINS[state.settings.domain] || DOMAINS['aukro.cz']).language;
+// Názvy kategorií a atributů se zobrazují v jazyce rozhraní. ID jsou ve všech jazycích stejná,
+// takže export (jazyk a měna nabídky podle domény účtu) na tom nezávisí.
+const domainTag = () => (DOMAINS[state.settings.domain] || DOMAINS['aukro.cz']).language;
+const dataTag = () => LANGUAGES.find((l) => l.code === getLanguage())?.tag || domainTag();
 
 async function loadData() {
   const res = await fetch('data/manifest.json', { cache: 'no-cache' });
@@ -735,12 +737,6 @@ $('#settingsForm').addEventListener('input', async (ev) => {
   state.settings[ev.target.name] = ev.target.value;
   showSettingsState();
   saveSoon();
-  if (ev.target.name === 'domain' && dataTag() !== data.tag) {
-    // jiná doména = jiný jazyk nabídek i číselníků
-    await loadData();
-    await renderGrid();
-    return;
-  }
   revalidateAll();
 });
 
@@ -757,16 +753,15 @@ $('#uiLang').addEventListener('change', async (ev) => {
   translateDom();
   fillSettingsForm();
   if (data.manifest) {
-    data.attributes = new Map(); // společné parametry mají přeložené názvy
-    const d = data.manifest.updatedAt ? new Date(data.manifest.updatedAt).toLocaleDateString(langTagUi()) : '?';
-    $('#dataInfo').textContent = t('dataInfo', { date: d, n: Object.keys(data.categoryValues).length });
+    // číselníky (kategorie, atributy) v novém jazyce
+    try { await loadData(); } catch { /* zůstanou původní */ }
     await renderGrid();
   }
 });
 
 function initLanguage() {
   const fromBrowser = (navigator.language || '').slice(0, 2).toLowerCase();
-  const fromDomain = codeFromTag(dataTag());
+  const fromDomain = codeFromTag(domainTag());
   const code = state.settings.uiLang || (LANGUAGES.some((l) => l.code === fromBrowser) ? fromBrowser : fromDomain);
   setLanguage(code);
   fillLanguageSelect();
