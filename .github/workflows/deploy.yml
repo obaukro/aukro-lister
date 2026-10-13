@@ -36,7 +36,7 @@ jobs:
     if: github.event_name != 'push'
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
