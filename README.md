@@ -76,6 +76,12 @@ AUKRO_BASE_URL=http://127.0.0.1:8787 AUKRO_CLIENT_ID=demo-client AUKRO_CLIENT_SE
 
 Pozor: nástroj nefunguje po otevření `index.html` dvojklikem, protože prohlížeč pak nenačte číselníky. Vždy ho otevírejte přes webovou adresu.
 
+## Jazyky
+
+Rozhraní je přeložené do jazyků zemí, kde Aukro působí: čeština, slovenština, maďarština, chorvatština a slovinština. Jazyk se přepíná v hlavičce a výchozí se odvodí z prohlížeče. Překlady jsou v `site/i18n.js` a překlady do HU, HR a SL je vhodné nechat zkontrolovat rodilým mluvčím.
+
+Číselníky se stahují ve všech pěti jazycích do `site/data/<jazyk>/`. Které jazyky se stahují, určuje proměnná `AUKRO_LANGUAGES`. Nástroj zobrazí kategorie a parametry v jazyce domény účtu nastavené u prodejce (aukro.cz → čeština, aukro.sk → slovenština, aukro.hu → maďarština, aukcije.hr → chorvatština, aukro.si → slovinština), protože v tomto jazyce musí být i nabídka. První synchronizace všech jazyků trvá zhruba pětkrát déle než u jednoho jazyka.
+
 ## Formát CSV
 
 Export používá stejné sloupce a pořadí (24 sloupců včetně běžné ceny a propagací) jako osvědčená Google Sheets šablona: list „export“, vzor je v `test/fixtures/sablona-sheets-export.csv`. Test `test/core.test.mjs` hlídá, že nástroj vygeneruje pro stejnou nabídku stejný řádek.

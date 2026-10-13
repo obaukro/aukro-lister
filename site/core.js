@@ -1,3 +1,5 @@
+import { t, daysLabel } from './i18n.js';
+
 // Čistá logika bez DOM: validace, generování popisu, CSV export/import.
 // Používá ji index.html i testy v Node.
 
@@ -11,9 +13,11 @@ export const DOMAINS = {
 
 export const COUNTRIES = ['CZ', 'SK', 'HU', 'HR', 'SI'];
 export const DURATIONS = [3, 5, 7, 10, 30];
-export const OFFER_TYPES = { AUCTION: 'Aukce', BUY_NOW: 'Kup teď', COMBINED: 'Aukce + Kup teď' };
-export const UNITS = { PIECES: 'kusy', SETS: 'sety', PAIRS: 'páry' };
-export const REEXPOSE = { 0: 'Neopakovat', 1: 'Opakovat (nová nabídka)', 2: 'Prodlužovat do prodeje' };
+export const OFFER_TYPE_KEYS = ['AUCTION', 'BUY_NOW', 'COMBINED'];
+// popisky v aktuálním jazyce
+export const offerTypes = () => ({ AUCTION: t('typeAuction'), BUY_NOW: t('typeBuyNow'), COMBINED: t('typeCombined') });
+export const durations = () => Object.fromEntries(DURATIONS.map((d) => [String(d), daysLabel(d)]));
+export const reexposeTypes = () => ({ 0: t('reexpose0'), 1: t('reexpose1'), 2: t('reexpose2') });
 export const MAX_ROWS_PER_FILE = 350;
 export const MAX_DESCRIPTION = 65000;
 
@@ -29,21 +33,22 @@ export const CSV_COLUMNS = [
 
 // Parametry, které šablona nabízí u všech kategorií (ID a volby převzaté ze Sheets šablony).
 // Pokud je kategorie vrací i z API, použije se verze z API.
-export const GLOBAL_ATTRIBUTES = [
+export const GLOBAL_IDS = [602, 601, 48, 130547, 8820];
+export const globalAttributes = () => [
   { id: 602, name: 'EAN', mandatory: false, companyOnly: false, type: 'string', global: true },
   { id: 601, name: 'P/N', mandatory: false, companyOnly: false, type: 'string', global: true },
-  { id: 48, name: 'Stav', mandatory: false, companyOnly: false, type: 'combobox', global: true, options: [
-    { id: 714, name: 'Nové' }, { id: 9820, name: 'Rozbaleno' }, { id: 12177, name: 'Zánovní' }, { id: 715, name: 'Použité' },
-    { id: 9827, name: 'Opravené' }, { id: 15348, name: 'Repasované' }, { id: 9826, name: 'Nefunkční / na díly' } ] },
-  { id: 130547, name: 'Doba záruky (měsíce)', mandatory: false, companyOnly: false, type: 'integer', min: 0, global: true },
-  { id: 8820, name: 'Doba dodání', mandatory: false, companyOnly: false, type: 'combobox', global: true, options: [
-    { id: 3086, name: '1-2 dny' }, { id: 3087, name: '2-3 dny' }, { id: 3088, name: '4-6 dní' },
-    { id: 3089, name: '7-10 dní' }, { id: 3090, name: 'více než 10 dní' } ] },
+  { id: 48, name: t('gStav'), mandatory: false, companyOnly: false, type: 'combobox', global: true, options: [
+    { id: 714, name: t('sNew') }, { id: 9820, name: t('sUnpacked') }, { id: 12177, name: t('sLikeNew') }, { id: 715, name: t('sUsed') },
+    { id: 9827, name: t('sRepaired') }, { id: 15348, name: t('sRefurbished') }, { id: 9826, name: t('sBroken') } ] },
+  { id: 130547, name: t('gWarranty'), mandatory: false, companyOnly: false, type: 'integer', min: 0, global: true },
+  { id: 8820, name: t('gDelivery'), mandatory: false, companyOnly: false, type: 'combobox', global: true, options: [
+    { id: 3086, name: t('d12') }, { id: 3087, name: t('d23') }, { id: 3088, name: t('d46') },
+    { id: 3089, name: t('d710') }, { id: 3090, name: t('d10plus') } ] },
 ];
 
 export function mergeAttributes(categoryAttrs = []) {
   const ids = new Set(categoryAttrs.map((a) => a.id));
-  return [...GLOBAL_ATTRIBUTES.filter((g) => !ids.has(g.id)), ...categoryAttrs];
+  return [...globalAttributes().filter((g) => !ids.has(g.id)), ...categoryAttrs];
 }
 
 // ---------- Výchozí hodnoty ----------
@@ -202,77 +207,77 @@ export function validateRow(row, ctx) {
   const e = {};
   const dom = DOMAINS[settings.domain] || DOMAINS['aukro.cz'];
 
-  if (!row.categoryId) e.categoryId = 'Vyberte kategorii.';
-  else if (!category) e.categoryId = `Kategorie ${row.categoryId} není v aktuálním číselníku Aukra.`;
-  else if (!category.leaf || !category.active) e.categoryId = 'Nabídku lze vystavit jen do aktivní koncové kategorie.';
+  if (!row.categoryId) e.categoryId = t('vCategoryMissing');
+  else if (!category) e.categoryId = t('vCategoryUnknown', { id: row.categoryId });
+  else if (!category.leaf || !category.active) e.categoryId = t('vCategoryNotLeaf');
 
   const name = String(row.name || '').trim();
-  if (name.length < 3) e.name = 'Název musí mít aspoň 3 znaky.';
-  else if (name.length > 70) e.name = `Název má ${name.length} znaků, povoleno je 70.`;
+  if (name.length < 3) e.name = t('vNameShort');
+  else if (name.length > 70) e.name = t('vNameLong', { len: name.length });
 
-  if (String(row.extId || '').length > 50) e.extId = 'Externí ID může mít nejvýš 50 znaků.';
+  if (String(row.extId || '').length > 50) e.extId = t('vExtId');
 
   const a = parseNumber(row.auctionPrice);
   const b = parseNumber(row.buyNowPrice);
   const q = parseNumber(row.quantity);
   const checkPrice = (key, n) => {
-    if (!Number.isFinite(n) || n <= 0) return (e[key] = 'Zadejte cenu větší než 0.');
-    if (dom.decimals === 0 && decimalsOf(n) > 0) return (e[key] = `${dom.currency}: cena bez desetinných míst.`);
-    if (dom.decimals === 2 && decimalsOf(n) > 2) return (e[key] = `${dom.currency}: nejvýš 2 desetinná místa.`);
-    if (dom.decimals === -1 && n % 10 !== 0) return (e[key] = `${dom.currency}: cena zaokrouhlená na desítky.`);
+    if (!Number.isFinite(n) || n <= 0) return (e[key] = t('vPrice'));
+    if (dom.decimals === 0 && decimalsOf(n) > 0) return (e[key] = t('vPriceNoDecimals', { cur: dom.currency }));
+    if (dom.decimals === 2 && decimalsOf(n) > 2) return (e[key] = t('vPrice2Decimals', { cur: dom.currency }));
+    if (dom.decimals === -1 && n % 10 !== 0) return (e[key] = t('vPriceTens', { cur: dom.currency }));
   };
-  if (!OFFER_TYPES[row.type]) e.type = 'Vyberte typ nabídky.';
+  if (!OFFER_TYPE_KEYS.includes(row.type)) e.type = t('vType');
   if (row.type === 'AUCTION' || row.type === 'COMBINED') checkPrice('auctionPrice', a);
   if (row.type === 'BUY_NOW' || row.type === 'COMBINED') checkPrice('buyNowPrice', b);
   if (row.type === 'COMBINED' && !e.auctionPrice && !e.buyNowPrice && b <= a)
-    e.buyNowPrice = 'Cena Kup teď musí být vyšší než vyvolávací cena.';
+    e.buyNowPrice = t('vBuyNowHigher');
   if (String(row.retailPrice ?? '').trim() !== '') checkPrice('retailPrice', parseNumber(row.retailPrice));
 
-  if (!Number.isInteger(q) || q < 1) e.quantity = 'Množství musí být celé číslo ≥ 1.';
-  else if ((row.type === 'AUCTION' || row.type === 'COMBINED') && q !== 1) e.quantity = 'Aukce může mít jen 1 kus.';
+  if (!Number.isInteger(q) || q < 1) e.quantity = t('vQuantity');
+  else if ((row.type === 'AUCTION' || row.type === 'COMBINED') && q !== 1) e.quantity = t('vQuantityAuction');
 
   const d = Number(row.duration);
-  if (!DURATIONS.includes(d)) e.duration = 'Délka musí být 3, 5, 7, 10 nebo 30 dní.';
-  else if (d === 30 && row.type !== 'BUY_NOW') e.duration = '30 dní jen pro nabídku Kup teď.';
+  if (!DURATIONS.includes(d)) e.duration = t('vDuration');
+  else if (d === 30 && row.type !== 'BUY_NOW') e.duration = t('vDuration30');
 
   if (row.startingAt) {
     const t = Date.parse(row.startingAt);
-    if (!Number.isFinite(t)) e.startingAt = 'Neplatné datum.';
-    else if (t < Date.now()) e.startingAt = 'Začátek musí být v budoucnu (nebo nechte prázdné = hned).';
+    if (!Number.isFinite(t)) e.startingAt = t('vDateInvalid');
+    else if (t < Date.now()) e.startingAt = t('vDatePast');
   }
 
   const imgs = (row.images || []).filter((x) => String(x).trim());
   const maxImg = category?.maxImages || 24;
-  if (!imgs.length) e.images = 'Přidejte aspoň 1 fotku (URL).';
-  else if (imgs.length > maxImg) e.images = `Kategorie povoluje nejvýš ${maxImg} fotek.`;
-  else if (imgs.some((u) => !isUrl(u))) e.images = 'Každá fotka musí být veřejná adresa začínající http(s)://';
+  if (!imgs.length) e.images = t('vImagesMissing');
+  else if (imgs.length > maxImg) e.images = t('vImagesTooMany', { max: maxImg });
+  else if (imgs.some((u) => !isUrl(u))) e.images = t('vImagesUrl');
 
 
   const html = buildDescriptionHtml(row.description);
-  if (!html) e.description = 'Popis je povinný.';
-  else if (html.length > MAX_DESCRIPTION) e.description = `Popis má ${html.length} znaků včetně HTML, povoleno je 65 000.`;
+  if (!html) e.description = t('vDescMissing');
+  else if (html.length > MAX_DESCRIPTION) e.description = t('vDescLong', { len: html.length });
 
   for (const at of attributes) {
     const key = `attr:${at.id}`;
     const v = row.attrs?.[at.id];
     const empty = v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length);
     if (empty) {
-      if (at.mandatory) e[key] = `${at.name}: povinný parametr.`;
+      if (at.mandatory) e[key] = t('vAttrRequired', { name: at.name });
       continue;
     }
     if (at.type === 'combobox') {
-      if (!at.options?.some((o) => String(o.id) === String(v))) e[key] = `${at.name}: vyberte hodnotu ze seznamu.`;
+      if (!at.options?.some((o) => String(o.id) === String(v))) e[key] = t('vAttrChoose', { name: at.name });
     } else if (at.type === 'checkbox') {
       const ids = Array.isArray(v) ? v : [v];
-      if (ids.some((id) => !at.options?.some((o) => String(o.id) === String(id)))) e[key] = `${at.name}: neplatná volba.`;
+      if (ids.some((id) => !at.options?.some((o) => String(o.id) === String(id)))) e[key] = t('vAttrInvalid', { name: at.name });
     } else if (at.type === 'integer' || at.type === 'float') {
       const n = parseNumber(v);
-      if (!Number.isFinite(n)) e[key] = `${at.name}: zadejte číslo.`;
-      else if (at.type === 'integer' && !Number.isInteger(n)) e[key] = `${at.name}: zadejte celé číslo.`;
-      else if (at.min != null && n < at.min) e[key] = `${at.name}: minimum je ${at.min}.`;
-      else if (at.max != null && n > at.max) e[key] = `${at.name}: maximum je ${at.max}.`;
+      if (!Number.isFinite(n)) e[key] = t('vAttrNumber', { name: at.name });
+      else if (at.type === 'integer' && !Number.isInteger(n)) e[key] = t('vAttrInteger', { name: at.name });
+      else if (at.min != null && n < at.min) e[key] = t('vAttrMin', { name: at.name, v: at.min });
+      else if (at.max != null && n > at.max) e[key] = t('vAttrMax', { name: at.name, v: at.max });
     } else if (at.length != null && String(v).length > at.length) {
-      e[key] = `${at.name}: nejvýš ${at.length} znaků.`;
+      e[key] = t('vAttrLength', { name: at.name, v: at.length });
     }
   }
   return e;
@@ -280,11 +285,11 @@ export function validateRow(row, ctx) {
 
 export function validateSettings(s) {
   const e = {};
-  if (!DOMAINS[s.domain]) e.domain = 'Vyberte doménu účtu.';
-  if (String(s.city || '').trim().length < 2) e.city = 'Vyplňte město.';
-  if (!String(s.postCode || '').trim()) e.postCode = 'Vyplňte PSČ.';
-  if (!COUNTRIES.includes(s.countryCode)) e.countryCode = 'Vyberte zemi.';
-  if (!/^\d+$/.test(String(s.shippingTemplateId || '').trim())) e.shippingTemplateId = 'Zadejte číselné ID šablony dopravy z Moje Aukro.';
+  if (!DOMAINS[s.domain]) e.domain = t('vSetDomain');
+  if (String(s.city || '').trim().length < 2) e.city = t('vSetCity');
+  if (!String(s.postCode || '').trim()) e.postCode = t('vSetPostCode');
+  if (!COUNTRIES.includes(s.countryCode)) e.countryCode = t('vSetCountry');
+  if (!/^\d+$/.test(String(s.shippingTemplateId || '').trim())) e.shippingTemplateId = t('vSetShipping');
   return e;
 }
 

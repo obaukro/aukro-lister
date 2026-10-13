@@ -11,60 +11,62 @@
   <header class="topbar">
     <div class="brand">
       <strong>Aukro Lister</strong>
-      <span id="dataInfo" class="muted">Načítám číselníky…</span>
+      <span id="dataInfo" class="muted" data-i18n="loadingData">Načítám číselníky…</span>
     </div>
     <div class="actions">
-      <button id="btnOpen" type="button">Otevřít práci</button>
-      <button id="btnSave" type="button">Uložit práci</button>
-      <button id="btnImportCsv" type="button">Importovat CSV</button>
-      <button id="btnExport" type="button" class="primary">Exportovat CSV</button>
+      <label class="lang"><span data-i18n="language">Jazyk</span>
+        <select id="uiLang"></select>
+      </label>
+      <button id="btnOpen" type="button" data-i18n="btnOpen">Otevřít práci</button>
+      <button id="btnSave" type="button" data-i18n="btnSave">Uložit práci</button>
+      <button id="btnImportCsv" type="button" data-i18n="btnImportCsv">Importovat CSV</button>
+      <button id="btnExport" type="button" class="primary" data-i18n="btnExport">Exportovat CSV</button>
     </div>
   </header>
 
-  <div id="demoBanner" class="banner" hidden>
-    Zobrazují se <strong>ukázková data</strong>. Skutečné kategorie a parametry se objeví po první synchronizaci s Aukrem.
-  </div>
+  <div id="demoBanner" class="banner" hidden data-i18n-html="demoBanner"></div>
+  <div id="langNotice" class="banner" hidden></div>
 
   <details id="settingsBox" class="settings" open>
-    <summary>Nastavení prodejce <span id="settingsState" class="pill"></span></summary>
+    <summary><span data-i18n="settingsTitle">Nastavení prodejce</span> <span id="settingsState" class="pill"></span></summary>
     <form id="settingsForm" class="settings-grid" autocomplete="off">
-      <label>Účet na doméně
+      <label><span data-i18n="domain">Účet na doméně</span>
         <select name="domain"></select>
       </label>
-      <label>Město
-        <input name="city" placeholder="Ostrava">
+      <label><span data-i18n="city">Město</span>
+        <input name="city">
       </label>
-      <label>PSČ
-        <input name="postCode" placeholder="702 00">
+      <label><span data-i18n="postCode">PSČ</span>
+        <input name="postCode">
       </label>
-      <label>Země
+      <label><span data-i18n="country">Země</span>
         <select name="countryCode"></select>
       </label>
-      <label>ID šablony dopravy
-        <input name="shippingTemplateId" inputmode="numeric" placeholder="např. 2419062">
-        <small>Moje Aukro → Můj prodej → Šablony dopravy.</small>
+      <label><span data-i18n="shippingTemplate">ID šablony dopravy</span>
+        <input name="shippingTemplateId" inputmode="numeric" data-i18n-placeholder="shippingPlaceholder">
+        <small data-i18n="shippingHint">Moje Aukro → Můj prodej → Šablony dopravy.</small>
       </label>
-      <label>Výchozí délka
+      <label><span data-i18n="defaultDuration">Výchozí délka</span>
         <select name="defaultDuration"></select>
       </label>
-      <label>Výchozí opakování
+      <label><span data-i18n="defaultReexpose">Výchozí opakování</span>
         <select name="defaultReexposeType"></select>
       </label>
     </form>
   </details>
 
   <nav class="tabs" id="viewTabs">
-    <button type="button" class="tab" data-view="offers">Nabídky <span id="tabOffersCount" class="muted"></span></button>
-    <button type="button" class="tab" data-view="attrs">Parametry <span id="tabAttrsCount" class="muted"></span></button>
+    <button type="button" class="tab" data-view="offers"><span data-i18n="tabOffers">Nabídky</span> <span id="tabOffersCount" class="muted"></span></button>
+    <button type="button" class="tab" data-view="attrs"><span data-i18n="tabAttrs">Parametry</span> <span id="tabAttrsCount" class="muted"></span></button>
   </nav>
 
   <main id="sheet">
     <div class="toolbar">
       <div class="toolbar-left">
-        <button id="btnAddRow" type="button">+ Řádek</button>
-        <button id="btnAddRows" type="button">+ 10 řádků</button>
-        <button id="btnSetCategory" type="button">Kategorie pro označené</button>
-        <button id="btnDelete" type="button" class="danger">Smazat označené řádky</button>
+        <button id="btnAddRow" type="button" data-i18n="addRow">+ Řádek</button>
+        <button id="btnAddRows" type="button" data-i18n="addRows">+ 10 řádků</button>
+        <button id="btnSetCategory" type="button" data-i18n="setCategory">Kategorie pro označené</button>
+        <button id="btnDelete" type="button" class="danger" data-i18n="deleteRows">Smazat označené řádky</button>
       </div>
       <div id="summary" class="summary"></div>
     </div>
@@ -72,17 +74,15 @@
     <p id="viewHint" class="hint muted"></p>
   </main>
 
-  <!-- Výběr kategorie -->
   <dialog id="dlgCategory">
     <form method="dialog" class="dlg">
-      <h2>Vyberte kategorii</h2>
-      <input id="catSearch" type="search" placeholder="Hledat kategorii nebo ID…" autocomplete="off">
+      <h2 data-i18n="chooseCategory">Vyberte kategorii</h2>
+      <input id="catSearch" type="search" data-i18n-placeholder="searchCategory" autocomplete="off">
       <ul id="catList" class="cat-list"></ul>
-      <div class="dlg-actions"><button value="cancel">Zavřít</button></div>
+      <div class="dlg-actions"><button value="cancel" data-i18n="close">Zavřít</button></div>
     </form>
   </dialog>
 
-  <!-- Zprávy -->
   <dialog id="dlgMessage">
     <form method="dialog" class="dlg">
       <h2 id="msgTitle"></h2>

@@ -69,16 +69,21 @@ const server = http.createServer((req, res) => {
     return send(403, { message: 'forbidden' });
   }
 
+  // jiný jazyk než čeština: názvy s předponou jazyka, ať je vidět, že se stahují překlady
+  const lang = req.headers['x-accept-language'] || 'cs-CZ';
+  const tr = (name) => (lang === 'cs-CZ' ? name : `${name} [${lang.slice(0, 2)}]`);
+
   if (url.pathname === '/api/v2/categories') {
-    if (req.headers['if-none-match'] === ETAG) return send(304, undefined, { ETag: ETAG });
-    return send(200, { categories }, { ETag: ETAG });
+    const etag = `"demo-${lang}"`;
+    if (req.headers['if-none-match'] === etag) return send(304, undefined, { ETag: etag });
+    return send(200, { categories: categories.map((c) => ({ ...c, name: tr(c.name) })) }, { ETag: etag });
   }
   const m = url.pathname.match(/^\/api\/v2\/categories\/(\d+)\/attributes$/);
   if (m) {
     attrCalls++;
     const list = attributes[m[1]];
     if (!list) return send(404, { message: 'not a leaf' });
-    return send(200, { attributes: list });
+    return send(200, { attributes: list.map((a) => ({ ...a, name: tr(a.name) })) });
   }
   if (url.pathname === '/__stats') return send(200, { tokenCalls, attrCalls });
   send(404, { message: 'not found' });

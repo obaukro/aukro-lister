@@ -4,7 +4,8 @@
 // Proměnné prostředí:
 //   AUKRO_CLIENT_ID, AUKRO_CLIENT_SECRET, AUKRO_API_KEY   (povinné)
 //   AUKRO_BASE_URL     výchozí https://aukro.cz
-//   AUKRO_LANGUAGE     výchozí cs-CZ
+//   AUKRO_LANGUAGES    jazyky číselníků oddělené čárkou, výchozí cs-CZ,sk-SK,hu-HU,hr-HR,sl-SI
+//                      (výstup: OUT_DIR/<jazyk>/categories.json, attributes/, manifest.json)
 //   OUT_DIR            výchozí site/data
 //   CONCURRENCY        počet souběžných požadavků na parametry, výchozí 2
 //   DELAY_MS           pauza mezi požadavky jednoho vlákna, výchozí 150
@@ -13,13 +14,13 @@
 //
 // Spuštění: node sync/sync.mjs
 
-import { mkdir, readFile, writeFile, readdir, unlink } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, readdir, unlink, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const env = process.env;
 const BASE = (env.AUKRO_BASE_URL || 'https://aukro.cz').replace(/\/$/, '');
 const API = `${BASE}/api/v2`;
-const LANGUAGE = env.AUKRO_LANGUAGE || 'cs-CZ';
+const LANGUAGES = (env.AUKRO_LANGUAGES || env.AUKRO_LANGUAGE || 'cs-CZ,sk-SK,hu-HU,hr-HR,sl-SI').split(',').map((x) => x.trim()).filter(Boolean);
 const OUT = env.OUT_DIR || 'site/data';
 const CONCURRENCY = Number(env.CONCURRENCY || 2);
 const DELAY_MS = Number(env.DELAY_MS || 150);
@@ -60,12 +61,12 @@ async function getToken() {
 }
 
 // ---------- HTTP s opakováním ----------
-async function api(path, { etag } = {}) {
+async function api(path, { etag, language } = {}) {
   for (let attempt = 1; ; attempt++) {
     const headers = {
       Authorization: `Bearer ${await getToken()}`,
       'X-Aukro-Api-Key': env.AUKRO_API_KEY,
-      'X-Accept-Language': LANGUAGE,
+      'X-Accept-Language': language,
       'Content-Type': 'application/json',
       Accept: 'application/json',
     };
@@ -151,16 +152,17 @@ function normalizeAttribute(a) {
 }
 
 // ---------- Hlavní běh ----------
-async function main() {
+async function syncLanguage(LANGUAGE, OUT) {
   const attrDir = join(OUT, 'attributes');
   await mkdir(attrDir, { recursive: true });
 
   const manifestPath = join(OUT, 'manifest.json');
+  await mkdir(OUT, { recursive: true });
   const manifest = await readJson(manifestPath, {});
   if (manifest.demo) delete manifest.categoriesEtag; // ukázková data vždy přepsat
 
-  log(`Stahuji kategorie (${LANGUAGE}) z ${API}`);
-  const cat = await api('/categories', { etag: FORCE ? undefined : manifest.categoriesEtag });
+  log(`[${LANGUAGE}] Stahuji kategorie z ${API}`);
+  const cat = await api('/categories', { etag: FORCE ? undefined : manifest.categoriesEtag, language: LANGUAGE });
 
   const lastFull = manifest.attributesCheckedAt ? Date.parse(manifest.attributesCheckedAt) : 0;
   const stale = Date.now() - lastFull > MAX_AGE_DAYS * 86400_000;
@@ -168,14 +170,14 @@ async function main() {
   let categories;
   if (cat.notModified) {
     if (!stale && !FORCE) {
-      log('Kategorie se nezměnily a parametry jsou čerstvé. Hotovo.');
-      return;
+      log(`[${LANGUAGE}] Kategorie se nezměnily a parametry jsou čerstvé.`);
+      return { ok: true };
     }
     log('Kategorie se nezměnily, ale parametry jsou starší než limit – obnovuji parametry.');
     categories = await readJson(join(OUT, 'categories.json'), null);
     if (!categories) {
       // cache chybí -> stáhnout znovu bez ETagu
-      const fresh = await api('/categories');
+      const fresh = await api('/categories', { language: LANGUAGE });
       categories = normalizeCategories(fresh.data.categories || []);
       cat.etag = fresh.etag;
     }
@@ -198,7 +200,7 @@ async function main() {
     while (queue.length) {
       const c = queue.shift();
       try {
-        const res = await api(`/categories/${c.id}/attributes`);
+        const res = await api(`/categories/${c.id}/attributes`, { language: LANGUAGE });
         const attrs = (res.data.attributes || []).map(normalizeAttribute);
         if (await writeIfChanged(join(attrDir, `${c.id}.json`), { categoryId: c.id, attributes: attrs })) changed++;
       } catch (err) {
@@ -238,9 +240,35 @@ async function main() {
 
   // Víc než 5 % chyb = něco je špatně, ať workflow selže a přijde e-mail.
   if (failures.length > Math.max(5, leaves.length * 0.05)) {
-    console.error(`Příliš mnoho chyb (${failures.length}).`);
-    process.exit(1);
+    console.error(`[${LANGUAGE}] Příliš mnoho chyb (${failures.length}).`);
+    return { ok: false };
   }
+  log(`[${LANGUAGE}] Hotovo.`);
+  return { ok: true };
+}
+
+async function main() {
+  await mkdir(OUT, { recursive: true });
+  const topPath = join(OUT, 'manifest.json');
+  const top = await readJson(topPath, {});
+  // přechod ze staršího uspořádání (jen čeština přímo v OUT/) – staré soubory odstranit
+  if (!Array.isArray(top.languages)) {
+    await rm(join(OUT, 'categories.json'), { force: true });
+    await rm(join(OUT, 'attributes'), { recursive: true, force: true });
+  }
+  let allOk = true;
+  for (const lang of LANGUAGES) {
+    const res = await syncLanguage(lang, join(OUT, lang));
+    if (!res.ok) allOk = false;
+  }
+  // souhrnný manifest: seznam jazyků a nejnovější změna
+  let updatedAt = null;
+  for (const lang of LANGUAGES) {
+    const m = await readJson(join(OUT, lang, 'manifest.json'), {});
+    if (m.updatedAt && (!updatedAt || m.updatedAt > updatedAt)) updatedAt = m.updatedAt;
+  }
+  await writeIfChanged(topPath, { languages: LANGUAGES, updatedAt });
+  if (!allOk) process.exit(1);
   log('Hotovo.');
 }
 

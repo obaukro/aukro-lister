@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   rowToRecord, toCsv, parseCsv, recordToRow, validateRow, buildDescriptionHtml, chunkRecords,
-  CSV_COLUMNS, defaultSettings, newRow, mergeAttributes, GLOBAL_ATTRIBUTES,
+  CSV_COLUMNS, defaultSettings, newRow, mergeAttributes, globalAttributes,
 } from '../site/core.js';
 
 const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8');
@@ -51,7 +51,7 @@ console.log('✓ import CSV');
 const merged = mergeAttributes([{ id: 48, name: 'Stav (z API)', type: 'combobox', options: [] }]);
 assert.equal(merged.filter((a) => a.id === 48).length, 1);
 assert.equal(merged.find((a) => a.id === 48).name, 'Stav (z API)');
-assert.equal(mergeAttributes([]).length, GLOBAL_ATTRIBUTES.length);
+assert.equal(mergeAttributes([]).length, globalAttributes().length);
 console.log('✓ globální parametry');
 
 // 4) Validace
@@ -76,3 +76,11 @@ console.log('✓ popis');
 const chunks = chunkRecords(Array.from({ length: 701 }, () => rec));
 assert.deepEqual(chunks.map((c) => c.length), [350, 350, 1]); assert.equal(chunks[1][0].entityId, 1);
 console.log('✓ dělení po 350');
+
+// 7) Překlady: validační hlášky v jiném jazyce
+import { setLanguage, t } from '../site/i18n.js';
+setLanguage('hu');
+assert.equal(validateRow({ ...row, duration: '7', categoryId: null }, ctx).categoryId, 'Válasszon kategóriát.');
+setLanguage('cs');
+assert.equal(t('neexistujici-klic'), 'neexistujici-klic');
+console.log('✓ překlady');

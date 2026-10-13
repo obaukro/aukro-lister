@@ -1,22 +1,22 @@
 // Aukro Lister – tabulka nabídek postavená na knihovně Tabulator (site/vendor, licence MIT).
 // Logika validace a exportu je v core.js, tady je jen práce s tabulkou.
 import {
-  DOMAINS, COUNTRIES, DURATIONS, OFFER_TYPES, REEXPOSE, GLOBAL_ATTRIBUTES, mergeAttributes,
+  DOMAINS, COUNTRIES, DURATIONS, offerTypes, durations, reexposeTypes, globalAttributes, GLOBAL_IDS as GLOBAL_ID_LIST, mergeAttributes,
   defaultSettings, newRow, validateRow, validateSettings, blocksToText,
   rowToRecord, toCsv, chunkRecords, parseCsv, recordToRow, settingsFromRecord,
 } from './core.js';
+import { t, setLanguage, getLanguage, LANGUAGES, codeFromTag, allVariants, translateDom } from './i18n.js';
 
 const STORAGE_KEY = 'aukro-lister-v3';
 const OLD_KEYS = ['aukro-lister-v2', 'aukro-lister-v1'];
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const GLOBAL_IDS = new Set(GLOBAL_ATTRIBUTES.map((a) => a.id));
-const DURATION_MAP = Object.fromEntries(DURATIONS.map((d) => [String(d), `${d} dní`]));
+const GLOBAL_IDS = new Set(GLOBAL_ID_LIST);
 const escapeHtml = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---------- Stav ----------
 let state = { settings: defaultSettings(), rows: [], view: 'offers' };
-const data = { manifest: null, categories: [], byId: new Map(), attributes: new Map(), categoryValues: {} };
+const data = { manifest: null, base: 'data/', tag: null, categories: [], byId: new Map(), attributes: new Map(), categoryValues: {} };
 
 function normalizeRow(r) {
   const row = { ...newRow(state.settings), ...r, attrs: { ...(r.attrs || {}) } };
@@ -51,22 +51,46 @@ function ensureRows(n = 20) {
 }
 
 // ---------- Číselníky ----------
+// Jazyk číselníků = jazyk domény účtu (nabídky na aukro.sk musí být slovensky atd.).
+const dataTag = () => (DOMAINS[state.settings.domain] || DOMAINS['aukro.cz']).language;
+
 async function loadData() {
   const res = await fetch('data/manifest.json', { cache: 'no-cache' });
-  if (!res.ok) throw new Error('Nepodařilo se načíst data/manifest.json');
-  data.manifest = await res.json();
+  if (!res.ok) throw new Error(t('dataError'));
+  const top = await res.json();
+  const tag = dataTag();
+  let notice = '';
+  if (Array.isArray(top.languages) && top.languages.length) {
+    // číselníky po jazycích: data/<jazyk>/…
+    const use = top.languages.includes(tag) ? tag : top.languages[0];
+    if (use !== tag) notice = t('noLangData');
+    data.base = `data/${use}/`;
+    const r = await fetch(`${data.base}manifest.json`, { cache: 'no-cache' });
+    data.manifest = r.ok ? await r.json() : top;
+    data.manifest.demo = top.demo || data.manifest.demo;
+  } else {
+    // starší uspořádání: jen čeština přímo v data/
+    data.base = 'data/';
+    data.manifest = top;
+    if (tag !== 'cs-CZ') notice = t('noLangData');
+  }
+  data.tag = tag;
+  data.attributes = new Map();
   const v = encodeURIComponent(data.manifest.updatedAt || '');
-  data.categories = await (await fetch(`data/categories.json?v=${v}`)).json();
+  data.categories = await (await fetch(`${data.base}categories.json?v=${v}`)).json();
   data.byId = new Map(data.categories.map((c) => [c.id, c]));
   const leaves = data.categories.filter((c) => c.leaf && c.active);
   // hodnoty pro rozbalovací seznam kategorií: „Název (nadřazená) #ID“
   data.categoryValues = Object.fromEntries(leaves
     .map((c) => [String(c.id), `${c.name}${c.parentId && data.byId.get(c.parentId) ? ` (${data.byId.get(c.parentId).name})` : ''} #${c.id}`])
-    .sort((a, b) => a[1].localeCompare(b[1], 'cs')));
-  const d = data.manifest.updatedAt ? new Date(data.manifest.updatedAt).toLocaleDateString('cs-CZ') : '?';
-  $('#dataInfo').textContent = `Číselníky Aukra k ${d} · ${leaves.length} kategorií`;
+    .sort((a, b) => a[1].localeCompare(b[1], tag)));
+  const d = data.manifest.updatedAt ? new Date(data.manifest.updatedAt).toLocaleDateString(langTagUi()) : '?';
+  $('#dataInfo').textContent = t('dataInfo', { date: d, n: leaves.length });
   $('#demoBanner').hidden = !data.manifest.demo;
+  $('#langNotice').hidden = !notice;
+  $('#langNotice').textContent = notice;
 }
+const langTagUi = () => LANGUAGES.find((l) => l.code === getLanguage())?.tag || 'cs-CZ';
 
 async function loadAttributes(categoryId) {
   if (!categoryId) return mergeAttributes([]);
@@ -74,7 +98,7 @@ async function loadAttributes(categoryId) {
   let list = [];
   try {
     const v = encodeURIComponent(data.manifest?.updatedAt || '');
-    const res = await fetch(`data/attributes/${categoryId}.json?v=${v}`);
+    const res = await fetch(`${data.base}attributes/${categoryId}.json?v=${v}`);
     if (res.ok) list = (await res.json()).attributes;
   } catch {}
   const merged = mergeAttributes(list);
@@ -138,7 +162,16 @@ function matchEnum(map, v) {
   if (id && id in map) return id;
   return s; // neznámá hodnota – validace ji označí
 }
-const truthy = (v) => /^(true|1|ano|x|✓|✔|pravda|yes)$/i.test(String(v ?? '').trim());
+const truthy = (v) => /^(true|1|ano|áno|igen|da|x|✓|✔|pravda|yes)$/i.test(String(v ?? '').trim());
+
+// výčet podle popisku v libovolném jazyce (vložení ze šablony v jiném jazyce)
+function matchAnyLang(v, keyMap, currentMap) {
+  const direct = matchEnum(currentMap, v);
+  if (direct in currentMap) return direct;
+  const low = String(v ?? '').trim().toLowerCase();
+  for (const [k, key] of Object.entries(keyMap)) if (allVariants(key).some((x) => x.toLowerCase() === low)) return k;
+  return direct;
+}
 
 const optionMap = (attr) => Object.fromEntries((attr?.options || []).map((o) => [String(o.id), o.name]));
 
@@ -171,7 +204,7 @@ function offerView(row) {
     reexposeType: String(row.reexposeType), bestOffer: !!row.bestOffer, priorityListing: !!row.priorityListing,
     boldTitle: !!row.boldTitle, highlight: !!row.highlight,
   };
-  for (const g of GLOBAL_ATTRIBUTES) v[`g_${g.id}`] = row.attrs[g.id] ?? '';
+  for (const g of globalAttributes()) v[`g_${g.id}`] = row.attrs[g.id] ?? '';
   return v;
 }
 
@@ -197,7 +230,7 @@ function attrForField(row, field) {
   let m = String(field).match(/^g_(\d+)$/);
   if (m) {
     const id = Number(m[1]);
-    return attrsOf(row).find((a) => a.id === id) || GLOBAL_ATTRIBUTES.find((a) => a.id === id);
+    return attrsOf(row).find((a) => a.id === id) || globalAttributes().find((a) => a.id === id);
   }
   m = String(field).match(/^s(\d+)$/);
   if (m) return categoryAttrsOf(row)[Number(m[1])] || null;
@@ -214,9 +247,9 @@ function applyField(row, field, value) {
     case 'categoryId': return changeCategory(row, value === '' || value == null ? null : (categoryFromText(value) ?? value));
     case 'images': row.images = String(value ?? '').split(/[\s,;]+/).filter(Boolean); return false;
     case 'startingAt': row.startingAt = parseDateTime(value); return false;
-    case 'type': row.type = matchEnum(OFFER_TYPES, value); return false;
-    case 'duration': row.duration = matchEnum(DURATION_MAP, value); return false;
-    case 'reexposeType': row.reexposeType = matchEnum(REEXPOSE, value); return false;
+    case 'type': row.type = matchAnyLang(value, { AUCTION: 'typeAuction', BUY_NOW: 'typeBuyNow', COMBINED: 'typeCombined' }, offerTypes()); return false;
+    case 'duration': row.duration = String(parseInt(value, 10) || value || ''); return false;
+    case 'reexposeType': row.reexposeType = /^\s*[012]\b/.test(String(value)) ? String(value).trim()[0] : matchAnyLang(value, { 0: 'reexpose0', 1: 'reexpose1', 2: 'reexpose2' }, reexposeTypes()); return false;
     case 'exportRow': case 'bestOffer': case 'priorityListing': case 'boldTitle': case 'highlight':
       row[field] = typeof value === 'boolean' ? value : truthy(value); return false;
     case 'name': case 'extId': case 'description': case 'auctionPrice': case 'buyNowPrice': case 'retailPrice': case 'quantity':
@@ -283,20 +316,20 @@ const statusCol = {
     const row = rowById(cell.getRow().getData().id);
     if (!row || !isActive(row)) return '';
     const n = Object.keys(rowErrors.get(row.id) || {}).length;
-    cell.getElement().title = n ? 'Klikněte pro seznam chyb' : 'Nabídka je v pořádku';
+    cell.getElement().title = n ? t('statusTip') : t('statusOk');
     return n ? `<span class="bad">${n} ✗</span>` : '<span class="ok">✓</span>';
   },
   cellClick: (e, cell) => showRowErrors(rowById(cell.getRow().getData().id)),
 };
 
 const categoryCol = (width = 230) => ({
-  title: 'Kategorie *', field: 'categoryId', width,
+  title: t('colCategory'), field: 'categoryId', width,
   editor: 'list',
   editorParams: () => listEditor(data.categoryValues, { maxWidth: 520, filterDelay: 200 }),
   formatter: (cell) => {
     const id = Number(cell.getValue());
     const c = data.byId.get(id);
-    const html = !cell.getValue() ? '<span class="muted">vyberte…</span>'
+    const html = !cell.getValue() ? `<span class="muted">${t('choose')}</span>`
       : c ? `${escapeHtml(c.name)} <span class="muted small">#${id}</span>` : `<span class="bad">#${escapeHtml(cell.getValue())}</span>`;
     return deco(cell, html);
   },
@@ -332,33 +365,33 @@ function attrCell(field, title, width) {
 function offerColumns() {
   return [
     statusCol,
-    boolCol('exportRow', 'Export', 64, { headerTooltip: 'Zrušením zaškrtnutí nabídku z exportu vyřadíte' }),
-    textCol('name', 'Název *', 280, { headerTooltip: '3–70 znaků' }),
+    boolCol('exportRow', t('colExport'), 64, { headerTooltip: t('colExportTip') }),
+    textCol('name', t('colName'), 280, { headerTooltip: t('colNameTip') }),
     categoryCol(),
-    textCol('extId', 'Kód zboží', 120),
+    textCol('extId', t('colExtId'), 120),
     {
-      title: 'Popis *', field: 'description', width: 260, editor: 'textarea',
+      title: t('colDescription'), field: 'description', width: 260, editor: 'textarea',
       editorParams: { verticalNavigation: 'editor', shiftEnterSubmit: true },
-      headerTooltip: 'Každý řádek = odstavec · „## Nadpis“ · „- odrážka“ · „1. bod“ · **tučně** · Shift+Enter uloží',
+      headerTooltip: t('colDescriptionTip'),
       formatter: (cell) => {
         const lines = String(cell.getValue() ?? '').split('\n').filter((x) => x.trim());
-        return deco(cell, lines.length ? `${escapeHtml(lines[0])}${lines.length > 1 ? ` <span class="muted small">+${lines.length - 1} ř.</span>` : ''}` : '');
+        return deco(cell, lines.length ? `${escapeHtml(lines[0])}${lines.length > 1 ? ` <span class="muted small">+${lines.length - 1} ${t('lines')}</span>` : ''}` : '');
       },
     },
-    enumCol('type', 'Typ *', OFFER_TYPES, 150),
-    textCol('auctionPrice', 'Vyvolávací cena', 110, { hozAlign: 'right' }),
-    textCol('buyNowPrice', 'Cena Kup teď', 110, { hozAlign: 'right' }),
-    textCol('retailPrice', 'Běžná cena', 100, { hozAlign: 'right' }),
-    textCol('quantity', 'Množství', 80, { hozAlign: 'right' }),
-    textCol('images', 'URL obrázků *', 220, { headerTooltip: 'Veřejné adresy fotek oddělené mezerou; první je hlavní' }),
-    textCol('startingAt', 'Začátek', 140, { headerTooltip: 'např. 20.10.2026 18:00 · prázdné = hned' }),
-    enumCol('duration', 'Délka', DURATION_MAP, 90),
-    enumCol('reexposeType', 'Opakování', REEXPOSE, 190),
-    ...GLOBAL_ATTRIBUTES.map((g) => attrCell(`g_${g.id}`, g.name, g.type === 'combobox' ? 150 : 130)),
-    boolCol('bestOffer', 'Nabídnout cenu', 90),
-    boolCol('priorityListing', 'Přednostní výpis', 90, { headerTooltip: 'Placená služba Aukra' }),
-    boolCol('boldTitle', 'Tučný titulek', 90, { headerTooltip: 'Placená služba Aukra' }),
-    boolCol('highlight', 'Zvýraznění', 90, { headerTooltip: 'Placená služba Aukra' }),
+    enumCol('type', t('colType'), offerTypes(), 150),
+    textCol('auctionPrice', t('colAuctionPrice'), 110, { hozAlign: 'right' }),
+    textCol('buyNowPrice', t('colBuyNowPrice'), 110, { hozAlign: 'right' }),
+    textCol('retailPrice', t('colRetailPrice'), 100, { hozAlign: 'right' }),
+    textCol('quantity', t('colQuantity'), 80, { hozAlign: 'right' }),
+    textCol('images', t('colImages'), 220, { headerTooltip: t('colImagesTip') }),
+    textCol('startingAt', t('colStart'), 140, { headerTooltip: t('colStartTip') }),
+    enumCol('duration', t('colDuration'), durations(), 90),
+    enumCol('reexposeType', t('colReexpose'), reexposeTypes(), 190),
+    ...globalAttributes().map((g) => attrCell(`g_${g.id}`, g.name, g.type === 'combobox' ? 150 : 130)),
+    boolCol('bestOffer', t('colBestOffer'), 90),
+    boolCol('priorityListing', t('colPriority'), 90, { headerTooltip: t('paidTip') }),
+    boolCol('boldTitle', t('colBold'), 90, { headerTooltip: t('paidTip') }),
+    boolCol('highlight', t('colHighlight'), 90, { headerTooltip: t('paidTip') }),
   ];
 }
 
@@ -366,21 +399,21 @@ function attrColumns() {
   const max = Math.max(1, ...state.rows.map((r) => categoryAttrsOf(r).length));
   const cols = [
     statusCol,
-    { title: 'Název', field: 'name', width: 260, editable: false, formatter: (c) => escapeHtml(c.getValue() ?? '') },
+    { title: t('colTitle'), field: 'name', width: 260, editable: false, formatter: (c) => escapeHtml(c.getValue() ?? '') },
     categoryCol(220),
   ];
   for (let i = 0; i < max; i++) {
     cols.push({
-      title: `Parametr ${i + 1}`, field: `n${i}`, width: 170, editable: false, cssClass: 'col-attrname',
+      title: t('colParam', { n: i + 1 }), field: `n${i}`, width: 170, editable: false, cssClass: 'col-attrname',
       formatter: (cell) => {
         const row = rowById(cell.getRow().getData().id);
         const a = row && categoryAttrsOf(row)[i];
         cell.getElement().classList.toggle('cell-na', !a);
         if (!a) return '';
-        return `${escapeHtml(a.name)}${a.mandatory ? ' <span class="bad">*</span>' : ''}${a.companyOnly ? ' <span class="muted small">(firmy)</span>' : ''}`;
+        return `${escapeHtml(a.name)}${a.mandatory ? ' <span class="bad">*</span>' : ''}${a.companyOnly ? ` <span class="muted small">${t('companyOnly')}</span>` : ''}`;
       },
     });
-    cols.push(attrCell(`s${i}`, `Hodnota ${i + 1}`, 170));
+    cols.push(attrCell(`s${i}`, t('colValue', { n: i + 1 }), 170));
   }
   return cols;
 }
@@ -410,7 +443,7 @@ async function renderGrid() {
     clipboard: false, // kopírování a vkládání řešíme sami (správně i víceřádkové buňky z Excelu / Sheets)
     rowHeader: { resizable: false, frozen: true, width: 44, hozAlign: 'center', formatter: 'rownum', cssClass: 'range-header-col', editor: false },
     columnDefaults: { headerSort: false, resizable: 'header', headerWordWrap: true },
-    placeholder: 'Žádné nabídky',
+    placeholder: t('noOffers'),
   });
   table.on('cellEdited', (cell) => onCellsChanged([[cell.getRow().getData().id, cell.getField(), cell.getValue()]]));
   table.on('tableBuilt', () => { renderViewTabs(); updateSummary(); });
@@ -502,10 +535,10 @@ function cellText(cell) {
     const c = data.byId.get(Number(v));
     return v ? (c ? `${c.name} ${v}` : String(v)) : '';
   }
-  if (field === 'type') return OFFER_TYPES[v] ?? v ?? '';
-  if (field === 'duration') return DURATION_MAP[v] ?? v ?? '';
-  if (field === 'reexposeType') return REEXPOSE[v] ?? v ?? '';
-  if (typeof v === 'boolean') return v ? 'ano' : 'ne';
+  if (field === 'type') return offerTypes()[v] ?? v ?? '';
+  if (field === 'duration') return durations()[v] ?? v ?? '';
+  if (field === 'reexposeType') return reexposeTypes()[v] ?? v ?? '';
+  if (typeof v === 'boolean') return v ? t('yes') : t('no');
   const a = attrForField(row, field);
   if (a) return attrValueToText(a, v);
   return v ?? '';
@@ -588,8 +621,8 @@ function fillSettingsForm() {
   const f = $('#settingsForm');
   f.domain.innerHTML = Object.entries(DOMAINS).map(([k, d]) => `<option value="${k}">${k} (${d.currency})</option>`).join('');
   f.countryCode.innerHTML = COUNTRIES.map((c) => `<option>${c}</option>`).join('');
-  f.defaultDuration.innerHTML = DURATIONS.map((d) => `<option value="${d}">${d} dní</option>`).join('');
-  f.defaultReexposeType.innerHTML = Object.entries(REEXPOSE).map(([k, v]) => `<option value="${k}">${escapeHtml(v)}</option>`).join('');
+  f.defaultDuration.innerHTML = Object.entries(durations()).map(([d, l]) => `<option value="${d}">${l}</option>`).join('');
+  f.defaultReexposeType.innerHTML = Object.entries(reexposeTypes()).map(([k, v]) => `<option value="${k}">${escapeHtml(v)}</option>`).join('');
   for (const el of f.elements) if (el.name) el.value = state.settings[el.name] ?? '';
   showSettingsState();
 }
@@ -602,26 +635,59 @@ function showSettingsState() {
     el.title = errs[el.name] || '';
   }
   const n = Object.keys(errs).length;
-  $('#settingsState').textContent = n ? `${n} k doplnění` : 'v pořádku';
+  $('#settingsState').textContent = n ? t('settingsMissing', { n }) : t('settingsOk');
   $('#settingsState').className = 'pill ' + (n ? 'bad' : 'ok');
   return errs;
 }
 
-$('#settingsForm').addEventListener('input', (ev) => {
+$('#settingsForm').addEventListener('input', async (ev) => {
   if (!ev.target.name) return;
   state.settings[ev.target.name] = ev.target.value;
   showSettingsState();
-  revalidateAll();
   saveSoon();
+  if (ev.target.name === 'domain' && dataTag() !== data.tag) {
+    // jiná doména = jiný jazyk nabídek i číselníků
+    await loadData();
+    await renderGrid();
+    return;
+  }
+  revalidateAll();
 });
+
+// ---------- Jazyk rozhraní ----------
+function fillLanguageSelect() {
+  const sel = $('#uiLang');
+  sel.innerHTML = LANGUAGES.map((l) => `<option value="${l.code}">${l.label}</option>`).join('');
+  sel.value = getLanguage();
+}
+$('#uiLang').addEventListener('change', async (ev) => {
+  setLanguage(ev.target.value);
+  state.settings.uiLang = ev.target.value;
+  save();
+  translateDom();
+  fillSettingsForm();
+  if (data.manifest) {
+    data.attributes = new Map(); // společné parametry mají přeložené názvy
+    const d = data.manifest.updatedAt ? new Date(data.manifest.updatedAt).toLocaleDateString(langTagUi()) : '?';
+    $('#dataInfo').textContent = t('dataInfo', { date: d, n: Object.keys(data.categoryValues).length });
+    await renderGrid();
+  }
+});
+
+function initLanguage() {
+  const fromBrowser = (navigator.language || '').slice(0, 2).toLowerCase();
+  const fromDomain = codeFromTag(dataTag());
+  const code = state.settings.uiLang || (LANGUAGES.some((l) => l.code === fromBrowser) ? fromBrowser : fromDomain);
+  setLanguage(code);
+  fillLanguageSelect();
+  translateDom();
+}
 
 // ---------- Listy, souhrn ----------
 function renderViewTabs() {
   $$('#viewTabs [data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === state.view));
   for (const id of ['btnAddRow', 'btnAddRows']) $('#' + id).hidden = state.view !== 'offers';
-  $('#viewHint').innerHTML = state.view === 'offers'
-    ? 'Všechny nabídky na jednom listu, kategorie se vybírá u každé nabídky. Označte buňky myší (nebo Shift + šipky); <b>Ctrl/Cmd+C</b> a <b>Ctrl/Cmd+V</b> kopírují a vkládají i z Excelu a Google Sheets. Psaním, Enterem nebo dvojklikem buňku upravíte, Delete obsah smaže.'
-    : 'Parametry kategorie u každé nabídky – dvojice Parametr / Hodnota jako ve Sheets šabloně. Šrafované buňky kategorie nemá. Hodnoty lze vkládat i jako text („Nové“, „Apple 7062“).';
+  $('#viewHint').innerHTML = state.view === 'offers' ? t('hintOffers') : t('hintAttrs');
 }
 $$('#viewTabs [data-view]').forEach((b) => (b.onclick = () => { state.view = b.dataset.view; save(); renderGrid(); }));
 
@@ -630,20 +696,21 @@ function updateSummary() {
   const bad = rows.filter((r) => Object.keys(rowErrors.get(r.id) || {}).length).length;
   const attrBad = rows.filter((r) => Object.keys(rowErrors.get(r.id) || {}).some(isCategoryAttrError)).length;
   const settingsBad = Object.keys(validateSettings(state.settings)).length;
-  $('#summary').innerHTML = `${rows.length} nabídek · <span class="${bad ? 'bad' : 'ok'}">${bad} s chybou</span>`
-    + (settingsBad ? ' · <span class="bad">doplňte nastavení prodejce</span>' : '');
+  $('#summary').innerHTML = `${t('sumOffers', { n: rows.length })} · <span class="${bad ? 'bad' : 'ok'}">${t('sumErrors', { n: bad })}</span>`
+    + (settingsBad ? ` · <span class="bad">${t('sumSettings')}</span>` : '');
   $('#tabOffersCount').textContent = `(${rows.length})`;
-  $('#tabAttrsCount').textContent = attrBad ? `(${attrBad} k doplnění)` : '';
+  $('#tabAttrsCount').textContent = attrBad ? `(${t('settingsMissing', { n: attrBad })})` : '';
   $('#tabAttrsCount').className = attrBad ? 'bad' : 'muted';
 }
 
 function showRowErrors(row) {
-  if (!row) return;
+  if (!row || isEmptyRow(row)) return; // prázdný řádek nemá co hlásit
+  if (row.exportRow === false) return message(t('excludedTitle'), `<p>${t('excludedBody')}</p>`);
   const list = Object.entries(rowErrors.get(row.id) || {});
   const html = list.length
-    ? `<ul>${list.map(([k, m]) => `<li>${escapeHtml(m)}${isCategoryAttrError(k) ? ' <span class="muted">(list Parametry)</span>' : ''}</li>`).join('')}</ul>`
-    : '<p>Nabídku lze exportovat.</p>';
-  message(list.length ? `Chyby: ${row.name || 'řádek bez názvu'}` : 'Nabídka je v pořádku', html);
+    ? `<ul>${list.map(([k, m]) => `<li>${escapeHtml(m)}${isCategoryAttrError(k) ? ` <span class="muted">${t('onAttrsSheet')}</span>` : ''}</li>`).join('')}</ul>`
+    : `<p>${t('canExport')}</p>`;
+  message(list.length ? t('rowErrorsTitle', { name: row.name || t('unnamedRow') }) : t('statusOk'), html);
 }
 
 function message(title, html) {
@@ -658,14 +725,14 @@ function rangeRowIds() {
   for (const r of table?.getRanges() || []) for (const row of r.getRows()) ids.add(row.getData().id);
   return [...ids];
 }
-const needSelection = () => message('Nic není označeno', '<p>Označte myší buňky v řádcích, se kterými chcete pracovat (stačí jeden sloupec).</p>');
+const needSelection = () => message(t('nothingSelectedTitle'), `<p>${t('nothingSelectedBody')}</p>`);
 
 $('#btnAddRow').onclick = () => { state.rows.push(newRow(state.settings)); save(); renderGrid(); };
 $('#btnAddRows').onclick = () => { for (let i = 0; i < 10; i++) state.rows.push(newRow(state.settings)); save(); renderGrid(); };
 $('#btnDelete').onclick = () => {
   const ids = rangeRowIds();
   if (!ids.length) return needSelection();
-  if (!confirm(`Smazat ${ids.length} řádků?`)) return;
+  if (!confirm(t('confirmDelete', { n: ids.length }))) return;
   state.rows = state.rows.filter((r) => !ids.includes(r.id));
   ensureRows(1);
   save();
@@ -702,7 +769,7 @@ function openCategoryPicker(onPick) {
       li.appendChild(b);
       list.appendChild(li);
     }
-    if (!hits.length) list.innerHTML = '<li class="muted">Nic nenalezeno.</li>';
+    if (!hits.length) list.innerHTML = `<li class="muted">${t('nothingFound')}</li>`;
   };
   input.value = '';
   input.oninput = render;
@@ -732,15 +799,15 @@ $('#fileOpen').onchange = async (ev) => {
   if (!f) return;
   try {
     const s = JSON.parse(await f.text());
-    if (!Array.isArray(s.rows) && !Array.isArray(s.sheets)) throw new Error('Soubor neobsahuje práci z Aukro Listeru.');
-    if (nonEmpty().length && !confirm('Nahradit aktuální práci obsahem souboru?')) return;
+    if (!Array.isArray(s.rows) && !Array.isArray(s.sheets)) throw new Error(t('notWorkFile'));
+    if (nonEmpty().length && !confirm(t('confirmReplace'))) return;
     state = normalizeState(s);
     ensureRows();
     save();
     fillSettingsForm();
     renderGrid();
   } catch (e) {
-    message('Soubor nelze otevřít', `<p>${escapeHtml(e.message)}</p>`);
+    message(t('cannotOpen'), `<p>${escapeHtml(e.message)}</p>`);
   }
 };
 
@@ -776,7 +843,7 @@ $('#fileCsv').onchange = async (ev) => {
   ev.target.value = '';
   if (!f) return;
   const recs = parseCsv(await f.text());
-  if (!recs.length || !('categoryId' in recs[0])) return message('Neplatné CSV', '<p>Soubor nemá očekávanou hlavičku (chybí sloupec categoryId).</p>');
+  if (!recs.length || !('categoryId' in recs[0])) return message(t('invalidCsvTitle'), `<p>${t('invalidCsvBody')}</p>`);
   state.settings = settingsFromRecord(recs[0], state.settings);
   state.rows = nonEmpty();
   const unknown = new Set();
@@ -789,8 +856,8 @@ $('#fileCsv').onchange = async (ev) => {
   save();
   fillSettingsForm();
   await renderGrid();
-  message('Import dokončen', `<p>Načteno ${recs.length} nabídek.</p>`
-    + (unknown.size ? `<p class="bad">Kategorie, které v číselníku nejsou: ${[...unknown].join(', ')}. Vyberte u těchto nabídek platnou kategorii.</p>` : ''));
+  message(t('importDoneTitle'), `<p>${t('importDoneBody', { n: recs.length })}</p>`
+    + (unknown.size ? `<p class="bad">${t('unknownCategories', { list: [...unknown].join(', ') })}</p>` : ''));
 };
 
 // ---------- Export CSV ----------
@@ -798,7 +865,7 @@ $('#btnExport').onclick = async () => {
   const settingsErrs = showSettingsState();
   if (Object.keys(settingsErrs).length) {
     $('#settingsBox').open = true;
-    return message('Doplňte nastavení prodejce', `<ul>${Object.values(settingsErrs).map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`);
+    return message(t('fixSettingsTitle'), `<ul>${Object.values(settingsErrs).map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ul>`);
   }
   await preloadAttributes();
   const records = [];
@@ -807,36 +874,37 @@ $('#btnExport').onclick = async () => {
     if (!isActive(row)) return;
     const errs = validate(row);
     if (Object.keys(errs).length) {
-      problems.push(`Řádek ${i + 1}${row.name ? ` (${row.name})` : ''}: ${Object.values(errs)[0]}`);
+      problems.push(`${t('rowN', { n: i + 1 })}${row.name ? ` (${row.name})` : ''}: ${Object.values(errs)[0]}`);
       return;
     }
     records.push(rowToRecord(row, 0, { settings: state.settings, attributes: attrsOf(row) }));
   });
   if (problems.length) {
     revalidateAll();
-    return message(`${problems.length} nabídek má chyby`,
-      '<p>Opravte je (červené buňky), nebo je vyřaďte zrušením zaškrtnutí ve sloupci Export.</p>'
+    return message(t('exportErrorsTitle', { n: problems.length }),
+      `<p>${t('exportErrorsBody')}</p>`
       + `<ul>${problems.slice(0, 30).map((p) => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`
-      + (problems.length > 30 ? `<p class="muted">…a dalších ${problems.length - 30}.</p>` : ''));
+      + (problems.length > 30 ? `<p class="muted">${t('andMore', { n: problems.length - 30 })}</p>` : ''));
   }
-  if (!records.length) return message('Není co exportovat', '<p>Vyplňte aspoň jednu nabídku.</p>');
+  if (!records.length) return message(t('nothingToExportTitle'), `<p>${t('nothingToExportBody')}</p>`);
   const chunks = chunkRecords(records);
   chunks.forEach((chunk, i) => {
     const suffix = chunks.length > 1 ? `-${i + 1}z${chunks.length}` : '';
     download(`aukro-import-${stamp()}${suffix}.csv`, toCsv(chunk), 'text/csv;charset=utf-8');
   });
-  message('CSV připraveno', `<p>Exportováno ${records.length} nabídek${chunks.length > 1 ? ` do ${chunks.length} souborů (max. 350 nabídek na soubor)` : ''}.</p>`);
+  message(t('csvReadyTitle'), `<p>${t('csvReadyBody', { n: records.length })}${chunks.length > 1 ? ` ${t('csvSplit', { n: chunks.length })}` : ''}</p>`);
 };
 
 // ---------- Start ----------
 async function init() {
   load();
+  initLanguage();
   fillSettingsForm();
   try {
     await loadData();
   } catch (e) {
-    $('#dataInfo').textContent = 'Číselníky se nepodařilo načíst.';
-    message('Chyba načítání', `<p>${escapeHtml(e.message)}</p><p class="muted">Otevírejte nástroj přes webovou adresu (GitHub Pages), ne jako soubor z disku.</p>`);
+    $('#dataInfo').textContent = t('dataError');
+    message(t('loadErrorTitle'), `<p>${escapeHtml(e.message)}</p><p class="muted">${t('loadErrorHint')}</p>`);
     return;
   }
   await renderGrid();
