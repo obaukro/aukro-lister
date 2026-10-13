@@ -175,8 +175,27 @@ export function blocksToText(blocks) {
   }).filter(Boolean).join('\n');
 }
 
+// Prostý text (řádek = odstavec, „## “, „- “, „1. “, **tučně**) -> HTML bez obalu Aukra.
+export function descriptionToHtml(text) {
+  const html = buildDescriptionHtml(textToBlocks(text));
+  return html.replace(/^<div class="aukro-offer-default">/, '').replace(/<\/div>$/, '')
+    .replace(/<div data-layout="text"><div>/g, '').replace(/<\/div><\/div>/g, '');
+}
+
+const looksLikeHtml = (s) => /<\/?[a-z][a-z0-9]*[\s>\/]/i.test(s);
+
+// Popis jako HTML: hotové HTML Aukra projde beze změny, jiné HTML se obalí textovým blokem,
+// prostý text se převede (řádek = odstavec, „## “ nadpis, „- “ odrážky, **tučně**).
 export function buildDescriptionHtml(blocks) {
-  if (typeof blocks === 'string') blocks = textToBlocks(blocks);
+  if (typeof blocks === 'string') {
+    const s = blocks.trim();
+    if (!s) return '';
+    if (looksLikeHtml(s)) {
+      if (/class=["']aukro-offer-default["']/.test(s)) return s;
+      return `<div class="aukro-offer-default"><div data-layout="text"><div>${s}</div></div></div>`;
+    }
+    blocks = textToBlocks(s);
+  }
   const parts = [];
   let text = [];
   const flush = () => {
@@ -209,6 +228,17 @@ export function buildDescriptionHtml(blocks) {
   flush();
   if (!parts.length) return '';
   return `<div class="aukro-offer-default">${parts.join('')}</div>`;
+}
+
+// HTML značky, které Aukro v popisu nepovoluje (povolené: h2, p, strong, ul, ol, li + bloky div a obrázky).
+const ALLOWED_TAGS = new Set(['div', 'p', 'h2', 'strong', 'ul', 'ol', 'li', 'img', 'br']);
+export function disallowedTags(html) {
+  const found = new Set();
+  for (const m of String(html || '').matchAll(/<\/?([a-z][a-z0-9]*)/gi)) {
+    const tag = m[1].toLowerCase();
+    if (!ALLOWED_TAGS.has(tag)) found.add(tag);
+  }
+  return [...found];
 }
 
 // ---------- Validace ----------
@@ -268,6 +298,10 @@ export function validateRow(row, ctx) {
   const html = buildDescriptionHtml(row.description);
   if (!html) e.description = t('vDescMissing');
   else if (html.length > MAX_DESCRIPTION) e.description = t('vDescLong', { len: html.length });
+  else {
+    const bad = disallowedTags(html);
+    if (bad.length) e.description = t('vDescTags', { tags: bad.map((x) => `<${x}>`).join(', ') });
+  }
 
   const eff = effectiveAttrs(row, attributes);
   for (const at of attributes) {

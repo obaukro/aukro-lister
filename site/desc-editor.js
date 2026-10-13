@@ -1,7 +1,6 @@
-// Editor popisu v okně: formátovaný text s náhledem jako na Aukru.
-// Uvnitř se popis dál ukládá jako jednoduchý text (řádek = odstavec, „## “ nadpis, „- “ odrážka,
-// „1. “ číslování, **tučně**), takže kopírování z/do Excelu funguje stejně jako dřív.
-import { buildDescriptionHtml, MAX_DESCRIPTION } from './core.js';
+// Editor popisu v okně. Popis se ukládá jako HTML (prodejci jsou zvyklí HTML vkládat rovnou).
+// Záložka „Náhled a úpravy“ = formátovaný text jako na Aukru, záložka „HTML“ = zdrojový kód.
+import { buildDescriptionHtml, descriptionToHtml, disallowedTags, MAX_DESCRIPTION } from './core.js';
 import { t, getLanguage } from './i18n.js';
 
 const BLOCK_TAGS = new Set(['P', 'DIV', 'SECTION', 'ARTICLE', 'BLOCKQUOTE', 'HEADER', 'FOOTER', 'MAIN', 'ASIDE', 'TABLE', 'TBODY', 'THEAD', 'TR', 'TD', 'TH', 'PRE', 'FIGURE', 'CENTER', 'DL', 'DD', 'DT']);
@@ -91,6 +90,21 @@ export function htmlToDescText(html) {
 }
 const domToDescText = (el) => blocksToTextFormat(collectBlocks(el, []));
 
+// libovolné HTML (Word, web, editor) -> čisté HTML povolené Aukrem (bez obalu)
+export const cleanHtml = (html) => descriptionToHtml(htmlToDescText(html));
+const hasLayoutOrImages = (html) => /<img\b|data-layout=["'](?!text)/i.test(html || '');
+// HTML pro zobrazení v editoru: bez obalu Aukra; prostý text se převede
+function toEditorHtml(value) {
+  const v = String(value || '').trim();
+  if (!v) return '<p><br></p>';
+  if (!/<[a-z]/i.test(v)) return descriptionToHtml(v) || '<p><br></p>';
+  const doc = new DOMParser().parseFromString(v, 'text/html');
+  const root = doc.querySelector('.aukro-offer-default');
+  if (!root) return v;
+  // textové bloky rozbalit, obrázkové ponechat
+  return [...root.children].map((layout) => (layout.getAttribute('data-layout') === 'text' ? (layout.firstElementChild || layout).innerHTML : layout.outerHTML)).join('');
+}
+
 // text popisu -> HTML pro editor (bez obalu Aukra)
 function textToEditorHtml(text) {
   const html = buildDescriptionHtml(text || '');
@@ -107,6 +121,31 @@ function textToEditorHtml(text) {
 // ---------- Okno editoru ----------
 let onSaveCb = null;
 let dlg;
+let mode = 'visual';      // 'visual' | 'html'
+let visualDirty = false;  // úpravy v náhledu -> při uložení vyčistit
+let original = '';
+
+// aktuální HTML podle záložky
+function currentHtml() {
+  const ed = dlg.querySelector('#descEditor');
+  const ta = dlg.querySelector('#descHtml');
+  if (mode === 'html') return ta.value.trim();
+  return visualDirty ? descriptionToHtml(domToDescText(ed)) : original;
+}
+
+function setMode(next) {
+  const ed = dlg.querySelector('#descEditor');
+  const ta = dlg.querySelector('#descHtml');
+  if (next === mode) return;
+  if (next === 'html') { ta.value = currentHtml(); }
+  else { original = ta.value.trim(); visualDirty = false; ed.innerHTML = toEditorHtml(original); }
+  mode = next;
+  ed.hidden = mode !== 'visual';
+  ta.hidden = mode !== 'html';
+  dlg.querySelector('.desc-toolbar').hidden = mode !== 'visual';
+  dlg.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === mode));
+  updateCount();
+}
 
 function ensureDialog() {
   if (dlg) return dlg;
@@ -116,6 +155,13 @@ function ensureDialog() {
   dlg.innerHTML = `
     <form method="dialog" class="dlg">
       <div class="desc-top"><h2 id="descTitle"></h2><span id="descRowName" class="muted small"></span></div>
+      <div class="desc-tabs">
+        <button type="button" data-tab="visual" class="tab"></button>
+        <button type="button" data-tab="html" class="tab"></button>
+        <span class="spacer"></span>
+        <button type="button" id="descClean"></button>
+      </div>
+      <div id="descNote" class="desc-note" hidden></div>
       <div class="desc-toolbar" role="toolbar">
         <button type="button" data-cmd="h2"></button>
         <button type="button" data-cmd="p"></button>
@@ -125,6 +171,7 @@ function ensureDialog() {
         <button type="button" data-cmd="clear"></button>
       </div>
       <div id="descEditor" class="desc-editor aukro-preview" contenteditable="true" spellcheck="true"></div>
+      <textarea id="descHtml" class="desc-html" spellcheck="false" hidden></textarea>
       <div class="desc-foot">
         <span id="descHint" class="muted small"></span>
         <span id="descCount" class="small"></span>
@@ -136,6 +183,18 @@ function ensureDialog() {
     </form>`;
   document.body.appendChild(dlg);
   const ed = dlg.querySelector('#descEditor');
+  const ta = dlg.querySelector('#descHtml');
+  dlg.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.tab)));
+  dlg.querySelector('#descClean').addEventListener('click', () => {
+    const clean = cleanHtml(currentHtml());
+    if (mode === 'html') ta.value = clean;
+    else { original = clean; visualDirty = false; ed.innerHTML = toEditorHtml(clean); }
+    updateCount();
+  });
+  ta.addEventListener('input', updateCount);
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); dlg.close('ok'); }
+  });
 
   dlg.querySelectorAll('[data-cmd]').forEach((b) => b.addEventListener('mousedown', (e) => {
     e.preventDefault(); // nezrušit výběr v editoru
@@ -146,6 +205,7 @@ function ensureDialog() {
     else if (cmd === 'ul') document.execCommand('insertUnorderedList');
     else if (cmd === 'ol') document.execCommand('insertOrderedList');
     else if (cmd === 'clear') { document.execCommand('removeFormat'); document.execCommand('formatBlock', false, '<p>'); }
+    visualDirty = true;
     updateCount();
   }));
 
@@ -161,28 +221,36 @@ function ensureDialog() {
     const block = sel.anchorNode && (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement)?.closest('p, h2, li, div:not(#descEditor)');
     if (text.includes('\n') && block && block.textContent.trim()) document.execCommand('insertParagraph');
     document.execCommand('insertHTML', false, textToEditorHtml(text));
+    visualDirty = true;
     updateCount();
   });
-  ed.addEventListener('input', updateCount);
+  ed.addEventListener('input', () => { visualDirty = true; updateCount(); });
   ed.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); dlg.close('ok'); }
   });
   dlg.addEventListener('close', () => {
-    if (dlg.returnValue === 'ok' && onSaveCb) onSaveCb(domToDescText(ed));
+    if (dlg.returnValue === 'ok' && onSaveCb) onSaveCb(currentHtml());
     onSaveCb = null;
   });
   return dlg;
 }
 
 function updateCount() {
-  const ed = dlg.querySelector('#descEditor');
-  const len = buildDescriptionHtml(domToDescText(ed)).length;
+  const html = currentHtml();
+  const len = buildDescriptionHtml(html).length;
+  const bad = disallowedTags(html);
+  const note = dlg.querySelector('#descNote');
+  const notes = [];
+  if (hasLayoutOrImages(html) && mode === 'visual') notes.push(t('descImagesNote'));
+  if (bad.length) notes.push(t('descTagsWarn', { tags: bad.map((x) => `<${x}>`).join(', ') }));
+  note.hidden = !notes.length;
+  note.textContent = notes.join(' ');
   const el = dlg.querySelector('#descCount');
   el.textContent = t('descCount', { n: len.toLocaleString(getLanguage()), max: MAX_DESCRIPTION.toLocaleString(getLanguage()) });
   el.className = 'small ' + (len > MAX_DESCRIPTION ? 'bad' : 'muted');
 }
 
-export function openDescriptionEditor(text, rowName, onSave) {
+export function openDescriptionEditor(value, rowName, onSave) {
   ensureDialog();
   dlg.querySelector('#descTitle').textContent = t('descTitle');
   dlg.querySelector('#descRowName').textContent = rowName || '';
@@ -191,18 +259,29 @@ export function openDescriptionEditor(text, rowName, onSave) {
     if (labels[b.dataset.cmd]) b.textContent = labels[b.dataset.cmd];
     b.title = b.dataset.cmd === 'bold' ? t('tbBold') : labels[b.dataset.cmd];
   });
+  dlg.querySelector('[data-tab=visual]').textContent = t('tabVisual');
+  dlg.querySelector('[data-tab=html]').textContent = t('tabHtml');
+  dlg.querySelector('#descClean').textContent = t('cleanHtml');
+  dlg.querySelector('#descClean').title = t('cleanHtmlTip');
   dlg.querySelector('#descHint').textContent = t('descHint');
   dlg.querySelector('#descCancel').textContent = t('cancel');
   dlg.querySelector('#descSave').textContent = t('save');
   const ed = dlg.querySelector('#descEditor');
-  ed.innerHTML = textToEditorHtml(text);
+  const ta = dlg.querySelector('#descHtml');
+  original = String(value || '').trim();
+  // prostý text (starší popisy) převést na HTML
+  if (original && !/<[a-z]/i.test(original)) original = descriptionToHtml(original);
+  visualDirty = false;
+  ed.innerHTML = toEditorHtml(original);
+  ta.value = original;
+  // popis s obrázky / rozvržením otevřít rovnou v HTML, ať se nic neztratí
+  mode = hasLayoutOrImages(original) ? 'visual' : 'html';
+  setMode(mode === 'visual' ? 'html' : 'visual');
   onSaveCb = onSave;
   dlg.returnValue = '';
   dlg.showModal();
   updateCount();
-  // kurzor na konec
-  ed.focus();
-  const sel = window.getSelection();
-  sel.selectAllChildren(ed);
-  sel.collapseToEnd();
+  const target = mode === 'visual' ? ed : ta;
+  target.focus();
+  if (mode === 'visual') { const sel = window.getSelection(); sel.selectAllChildren(ed); sel.collapseToEnd(); }
 }

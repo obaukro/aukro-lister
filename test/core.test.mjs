@@ -94,3 +94,16 @@ import { PRODUCT_CODE_ATTR_ID } from '../site/core.js';
   assert.ok(validateRow({ ...row, duration: '7', extId: '' }, { ...ctx, attributes: withCode })[`attr:${PRODUCT_CODE_ATTR_ID}`], 'povinný kód zboží');
   console.log('✓ kód zboží jako atribut');
 }
+
+// 9) Popis jako HTML
+import { descriptionToHtml, disallowedTags } from '../site/core.js';
+{
+  assert.equal(buildDescriptionHtml('<p>Ahoj</p>'), '<div class="aukro-offer-default"><div data-layout="text"><div><p>Ahoj</p></div></div></div>');
+  const full = '<div class="aukro-offer-default"><div data-layout="image"><div><img src="https://x/y.jpg"></div></div></div>';
+  assert.equal(buildDescriptionHtml(full), full);
+  assert.equal(descriptionToHtml('## A\nb'), '<h2>A</h2><p>b</p>');
+  assert.deepEqual(disallowedTags('<p><span>a</span><b>b</b><br><strong>c</strong></p>'), ['span', 'b']);
+  assert.ok(validateRow({ ...row, duration: '7', description: '<p><span>x</span></p>' }, ctx).description, 'nepovolené značky');
+  assert.deepEqual(validateRow({ ...row, duration: '7', description: '<h2>T</h2><p>x</p>' }, ctx), {});
+  console.log('✓ popis jako HTML');
+}

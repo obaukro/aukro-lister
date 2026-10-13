@@ -2,10 +2,10 @@
 // Logika validace a exportu je v core.js, tady je jen práce s tabulkou.
 import {
   DOMAINS, COUNTRIES, DURATIONS, offerTypes, durations, reexposeTypes, globalAttributes, MAIN_TABLE_ATTR_IDS, PRODUCT_CODE_ATTR_ID, mergeAttributes,
-  defaultSettings, newRow, validateRow, validateSettings, blocksToText,
+  defaultSettings, newRow, validateRow, validateSettings, blocksToText, descriptionToHtml,
   rowToRecord, toCsv, chunkRecords, parseCsv, recordToRow, settingsFromRecord,
 } from './core.js';
-import { openDescriptionEditor, htmlToDescText } from './desc-editor.js';
+import { openDescriptionEditor, cleanHtml } from './desc-editor.js';
 import { t, setLanguage, getLanguage, LANGUAGES, codeFromTag, allVariants, translateDom } from './i18n.js';
 
 const STORAGE_KEY = 'aukro-lister-v3';
@@ -23,6 +23,8 @@ const data = { manifest: null, base: 'data/', tag: null, categories: [], byId: n
 function normalizeRow(r) {
   const row = { ...newRow(state.settings), ...r, attrs: { ...(r.attrs || {}) } };
   if (Array.isArray(row.description)) row.description = blocksToText(row.description);
+  // popis se ukládá jako HTML – starší textové popisy převést
+  if (row.description && !/<[a-z]/i.test(row.description)) row.description = descriptionToHtml(row.description);
   if (!Array.isArray(row.images)) row.images = String(row.images || '').split(/[\s,;]+/).filter(Boolean);
   return row;
 }
@@ -258,7 +260,13 @@ function applyField(row, field, value) {
     case 'reexposeType': row.reexposeType = /^\s*[012]\b/.test(String(value)) ? String(value).trim()[0] : matchAnyLang(value, { 0: 'reexpose0', 1: 'reexpose1', 2: 'reexpose2' }, reexposeTypes()); return false;
     case 'exportRow': case 'bestOffer': case 'priorityListing': case 'boldTitle': case 'highlight':
       row[field] = typeof value === 'boolean' ? value : truthy(value); return false;
-    case 'name': case 'extId': case 'description': case 'auctionPrice': case 'buyNowPrice': case 'retailPrice': case 'quantity':
+    case 'description': {
+      // v buňce je vždy HTML – prostý text (např. ze staré šablony) převést na odstavce
+      const v = String(value ?? '');
+      row.description = v.trim() && !/<[a-z]/i.test(v) ? descriptionToHtml(v) : v;
+      return false;
+    }
+    case 'name': case 'extId': case 'auctionPrice': case 'buyNowPrice': case 'retailPrice': case 'quantity':
       row[field] = value ?? ''; return false;
     default: {
       const attr = attrForField(row, field);
@@ -384,8 +392,9 @@ function offerColumns() {
       headerTooltip: t('colDescriptionTip'),
       cellDblClick: (e, cell) => editDescription(cell),
       formatter: (cell) => {
-        const lines = String(cell.getValue() ?? '').split('\n').filter((x) => x.trim());
-        return deco(cell, lines.length ? `${escapeHtml(lines[0])}${lines.length > 1 ? ` <span class="muted small">+${lines.length - 1} ${t('lines')}</span>` : ''}` : '');
+        // v tabulce vždy HTML (zkrácené na jeden řádek)
+        const v = String(cell.getValue() ?? '').replace(/\s+/g, ' ').trim();
+        return deco(cell, `<span class="html-cell">${escapeHtml(v.length > 300 ? v.slice(0, 300) + '…' : v)}</span>`);
       },
     },
     enumCol('type', t('colType'), offerTypes(), 150),
@@ -441,9 +450,12 @@ function availableGridHeight() {
 }
 const initialGridHeight = () => `${availableGridHeight()}px`;
 function fitGrid() {
-  if (!table) return;
+  const tb = table;
+  if (!tb || !tb.element || !document.body.contains(tb.element) || !tb.initialized) return;
   const h = availableGridHeight();
-  if (Math.abs((table.element?.offsetHeight || 0) - h) > 2) table.setHeight(h);
+  try {
+    if (Math.abs(tb.element.offsetHeight - h) > 2) tb.setHeight(h);
+  } catch { /* tabulka se mezitím překreslila */ }
 }
 let fitTimer;
 window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitGrid, 100); });
@@ -653,8 +665,9 @@ $('#grid').addEventListener('paste', async (e) => {
   // formátovaný text (Word, web) do jedné buňky popisu -> zachovat nadpisy, tučné a seznamy
   const html = e.clipboardData.getData('text/html');
   const plain = e.clipboardData.getData('text/plain');
-  if (html && cells.length === 1 && cells[0].length === 1 && cells[0][0].getField() === 'description' && !plain.includes('\t')) {
-    await pasteMatrix(cells, [[htmlToDescText(html)]]);
+  // (vložený HTML kód jako text zůstane beze změny – je v text/plain)
+  if (html && cells.length === 1 && cells[0].length === 1 && cells[0][0].getField() === 'description' && !plain.includes('\t') && !/<[a-z]/i.test(plain)) {
+    await pasteMatrix(cells, [[cleanHtml(html)]]);
     return;
   }
   await pasteMatrix(cells, parseTsv(e.clipboardData.getData('text/plain')));
@@ -888,31 +901,6 @@ $('#fileOpen').onchange = async (ev) => {
   }
 };
 
-// popis z HTML zpět na text (co nejde převést, zůstane jako HTML)
-function htmlToText(html) {
-  if (!html) return '';
-  try {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const root = doc.querySelector('.aukro-offer-default');
-    if (!root) return html;
-    const textOf = (el) => [...el.childNodes].map((n) => (n.nodeName === 'STRONG' || n.nodeName === 'B' ? `**${n.textContent}**` : n.nodeName === 'BR' ? '\n' : n.textContent)).join('').trim();
-    const out = [];
-    for (const layout of root.children) {
-      if (layout.getAttribute('data-layout') !== 'text') return html;
-      for (const el of (layout.firstElementChild || layout).children) {
-        const tag = el.tagName.toLowerCase();
-        if (tag === 'p') out.push(textOf(el));
-        else if (tag === 'h2') out.push(`## ${textOf(el)}`);
-        else if (tag === 'ul') out.push(...[...el.children].map((li) => `- ${textOf(li)}`));
-        else if (tag === 'ol') out.push(...[...el.children].map((li, i) => `${i + 1}. ${textOf(li)}`));
-        else return html;
-      }
-    }
-    return out.join('\n');
-  } catch {
-    return html;
-  }
-}
 
 $('#btnImportCsv').onclick = () => $('#fileCsv').click();
 $('#fileCsv').onchange = async (ev) => {
@@ -925,7 +913,7 @@ $('#fileCsv').onchange = async (ev) => {
   state.rows = nonEmpty();
   const unknown = new Set();
   for (const rec of recs) {
-    const row = normalizeRow(recordToRow(rec, htmlToText));
+    const row = normalizeRow(recordToRow(rec)); // popis zůstává jako HTML
     if (row.categoryId && !data.byId.has(row.categoryId)) unknown.add(row.categoryId);
     state.rows.push(row);
   }

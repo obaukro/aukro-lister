@@ -48,7 +48,7 @@ Ovládání:
 2. Buňky označíte myší nebo Shift + šipkami. **Ctrl/Cmd + C** a **Ctrl/Cmd + V** kopírují a vkládají oblasti, i z Excelu a Google Sheets, včetně víceřádkových buněk. Jedna zkopírovaná hodnota vložená do označené oblasti ji celou vyplní.
 3. Psaním, Enterem nebo dvojklikem buňku upravíte. Delete smaže obsah označených buněk.
 4. Chybné buňky jsou červené a po najetí myší ukážou důvod. Klik na stav řádku (např. „2 ✗“) vypíše všechny chyby nabídky.
-5. Popis: každý řádek je odstavec, `## Nadpis`, `- odrážka`, `1. bod`, `**tučně**`.
+5. Popis je v buňce vždy jako HTML a lze ho vložit rovnou. Dvojklik nebo Enter otevře editor se záložkami **Náhled a úpravy** (formátování, vkládání z Wordu a webu) a **HTML** (zdrojový kód). Tlačítko **Vyčistit HTML** odstraní značky, které Aukro nepovoluje (povolené jsou h2, p, strong, ul, ol, li, br a bloky Aukra s obrázky). Prostý text se převede na odstavce.
 6. **Exportovat CSV** stáhne soubor pro hromadný import na Aukru. Nad 350 nabídek se rozdělí do více souborů. Sloupcem **Export** lze nabídku dočasně vyřadit.
 
 Rozpracovaná práce se průběžně ukládá v prohlížeči. Pro zálohu nebo přenos na jiný počítač slouží **Uložit práci** a **Otevřít práci**. Přes **Importovat CSV** lze načíst existující CSV, například ze starých Sheets šablon.
