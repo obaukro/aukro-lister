@@ -1,0 +1,1 @@
+{"categoryId":54970,"attributes":[{"id":601,"name":"Cikkszám (gyártó kódja)","mandatory":false,"companyOnly":false,"type":"string","length":25},{"id":602,"name":"EAN","mandatory":false,"companyOnly":false,"type":"string","length":20},{"id":18152,"name":"Árukód","mandatory":false,"companyOnly":false,"type":"string","length":30}]}

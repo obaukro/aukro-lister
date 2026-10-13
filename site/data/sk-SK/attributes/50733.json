@@ -1,0 +1,1 @@
+{"categoryId":50733,"attributes":[{"id":601,"name":"P/N (kód výrobcu)","mandatory":false,"companyOnly":false,"type":"string","length":25},{"id":602,"name":"EAN","mandatory":false,"companyOnly":false,"type":"string","length":20},{"id":18152,"name":"Kód tovaru","mandatory":false,"companyOnly":false,"type":"string","length":30}]}

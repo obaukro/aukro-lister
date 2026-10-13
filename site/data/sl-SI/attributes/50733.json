@@ -1,0 +1,1 @@
+{"categoryId":50733,"attributes":[{"id":601,"name":"P/N (koda proizvajalca)","mandatory":false,"companyOnly":false,"type":"string","length":25},{"id":602,"name":"EAN","mandatory":false,"companyOnly":false,"type":"string","length":20},{"id":18152,"name":"Koda blaga","mandatory":false,"companyOnly":false,"type":"string","length":30}]}

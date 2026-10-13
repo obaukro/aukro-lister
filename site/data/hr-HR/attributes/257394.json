@@ -1,0 +1,1 @@
+{"categoryId":257394,"attributes":[{"id":601,"name":"P/N (kod proizvođača)","mandatory":false,"companyOnly":false,"type":"string","length":25},{"id":602,"name":"EAN","mandatory":false,"companyOnly":false,"type":"string","length":20},{"id":18152,"name":"Šifra robe","mandatory":false,"companyOnly":false,"type":"string","length":30}]}
