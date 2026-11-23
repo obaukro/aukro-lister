@@ -58,7 +58,12 @@ function ensureRows(n = 20) {
 // Názvy kategorií a atributů se zobrazují v jazyce rozhraní. ID jsou ve všech jazycích stejná,
 // takže export (jazyk a měna nabídky podle domény účtu) na tom nezávisí.
 const domainTag = () => (DOMAINS[state.settings.domain] || DOMAINS['aukro.cz']).language;
-const dataTag = () => LANGUAGES.find((l) => l.code === getLanguage())?.tag || domainTag();
+// Jazyky jen pro rozhraní (polština, angličtina) nemají číselníky – kategorie a atributy jsou v jazyce domény.
+const uiLangInfo = () => LANGUAGES.find((l) => l.code === getLanguage());
+const dataTag = () => {
+  const l = uiLangInfo();
+  return l && !l.uiOnly ? l.tag : domainTag();
+};
 
 async function loadData() {
   const res = await fetch('data/manifest.json', { cache: 'no-cache' });
@@ -79,6 +84,10 @@ async function loadData() {
     data.base = 'data/';
     data.manifest = top;
     if (tag !== 'cs-CZ') notice = t('noLangData');
+  }
+  if (!notice && uiLangInfo()?.uiOnly) {
+    const lbl = LANGUAGES.find((l) => l.tag === data.manifest.language || l.tag === tag)?.label || tag;
+    notice = t('catalogLang', { lang: lbl });
   }
   data.tag = tag;
   data.attributes = new Map();
@@ -734,9 +743,15 @@ function showSettingsState() {
 
 $('#settingsForm').addEventListener('input', async (ev) => {
   if (!ev.target.name) return;
+  const before = dataTag();
   state.settings[ev.target.name] = ev.target.value;
   showSettingsState();
   saveSoon();
+  if (ev.target.name === 'domain' && data.manifest && dataTag() !== before) {
+    // rozhraní bez vlastních číselníků: kategorie a atributy v jazyce nové domény
+    try { await loadData(); } catch { /* zůstanou původní */ }
+    await renderGrid();
+  }
   revalidateAll();
 });
 
@@ -762,7 +777,9 @@ $('#uiLang').addEventListener('change', async (ev) => {
 function initLanguage() {
   const fromBrowser = (navigator.language || '').slice(0, 2).toLowerCase();
   const fromDomain = codeFromTag(domainTag());
-  const code = state.settings.uiLang || (LANGUAGES.some((l) => l.code === fromBrowser) ? fromBrowser : fromDomain);
+  // Angličtinu nenabízíme automaticky – mnoho prodejců má prohlížeč v angličtině, ale chce jazyk své domény.
+  const auto = fromBrowser !== 'en' && LANGUAGES.some((l) => l.code === fromBrowser);
+  const code = state.settings.uiLang || (auto ? fromBrowser : fromDomain);
   setLanguage(code);
   fillLanguageSelect();
   translateDom();

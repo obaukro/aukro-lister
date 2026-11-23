@@ -78,7 +78,9 @@ Pozor: nástroj nefunguje po otevření `index.html` dvojklikem, protože prohl�
 
 ## Jazyky
 
-Rozhraní je přeložené do jazyků zemí, kde Aukro působí: čeština, slovenština, maďarština, chorvatština a slovinština. Jazyk se přepíná v hlavičce a výchozí se odvodí z prohlížeče. Překlady jsou v `site/i18n.js` a překlady do HU, HR a SL je vhodné nechat zkontrolovat rodilým mluvčím.
+Rozhraní je přeložené do jazyků zemí, kde Aukro působí (čeština, slovenština, maďarština, chorvatština a slovinština), a navíc do polštiny a angličtiny. Jazyk se přepíná v hlavičce a výchozí se odvodí z prohlížeče (angličtinu je potřeba vybrat ručně). Překlady jsou v `site/i18n.js` a překlady do HU, HR, SL a PL je vhodné nechat zkontrolovat rodilým mluvčím.
+
+Polština a angličtina jsou jen jazyky rozhraní: Aukro pro ně nemá číselníky, takže kategorie a atributy se zobrazují v jazyce domény účtu nastavené u prodejce.
 
 Číselníky se stahují ve všech pěti jazycích do `site/data/<jazyk>/`. Které jazyky se stahují, určuje proměnná `AUKRO_LANGUAGES`. Nástroj zobrazí kategorie a parametry v jazyce domény účtu nastavené u prodejce (aukro.cz → čeština, aukro.sk → slovenština, aukro.hu → maďarština, aukcije.hr → chorvatština, aukro.si → slovinština), protože v tomto jazyce musí být i nabídka. Každý jazyk se stahuje v samostatné úloze a všechny běží souběžně, takže synchronizace všech jazyků trvá zhruba stejně dlouho jako jednoho. Poslední krok (collect) jazyky spojí, zapíše souhrnný `site/data/manifest.json` a uloží změny.
 

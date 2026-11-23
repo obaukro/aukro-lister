@@ -81,8 +81,19 @@ console.log('✓ dělení po 350');
 import { setLanguage, t } from '../site/i18n.js';
 setLanguage('hu');
 assert.equal(validateRow({ ...row, duration: '7', categoryId: null }, ctx).categoryId, 'Válasszon kategóriát.');
+setLanguage('pl');
+assert.equal(validateRow({ ...row, duration: '7', categoryId: null }, ctx).categoryId, 'Wybierz kategorię.');
+setLanguage('en');
+assert.equal(t('typeBuyNow'), 'Buy Now');
 setLanguage('cs');
 assert.equal(t('neexistujici-klic'), 'neexistujici-klic');
+{
+  // každý text musí mít překlad do všech jazyků rozhraní
+  const { LANGUAGES, allVariants } = await import('../site/i18n.js');
+  const src = readFileSync(new URL('../site/i18n.js', import.meta.url), 'utf8');
+  const keys = [...src.matchAll(/^  ([A-Za-z0-9]+): \[/gm)].map((m) => m[1]);
+  for (const k of keys) assert.equal(allVariants(k).length, LANGUAGES.length, `překlady klíče ${k}`);
+}
 console.log('✓ překlady');
 
 // 8) Kód zboží se posílá i jako atribut 18152, pokud ho kategorie má
